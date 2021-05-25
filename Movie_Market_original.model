@@ -110,10 +110,13 @@ Initial_Value {
 //-------------------------------------------------------
 #begin_rule UNIVERSE
 /*
-!! 論文のモデルにオリジナルの改変を加えたもの !!
 情報量が閾値を超えた場合、
 効用値が閾値を超えた場合に、
 エージェントは映画を鑑賞する
+<変更点>
+• ジャンル選好度 W_g について、「普通」の選好度 0.1 ~ 0.9 で与える
+• 2回目以降の満足度/批評値の受信重みを2割ずつ減衰するようにした
+• 
 */
 Univ_Init{
 Dim num_netuser As Integer, num_netfollower As Integer, num_consumer As Integer
@@ -139,7 +142,7 @@ End if
 Universe.dir = "resultOrigin"
 
 // 乱数シードの指定
-//SetRandomSeed(88)
+SetRandomSeed(88)
 
 
 //映画を生成
@@ -506,10 +509,10 @@ For i=0 to 7
 	If rand < Universe.genreRatio(i) Then // ジャンル選好割合に応じて重み付けを行う
 		My.W_g(i) = 1
 	// 1/0 から少しだけ変更してみる
-//	Elseif rand > 0.9 Then // 10 % はそのジャンルが嫌いで重みを 0 とする
-//		My.W_g(i) = 0
+	Elseif rand > 0.9 Then // 10 % はそのジャンルが嫌いで重みを 0 とする
+		My.W_g(i) = 0
 	Else // 好きでも嫌いでもない場合は、0.1~0.9の値をランダムに与える
-		My.W_g(i) = 0//Rnd() * 0.8 + 0.1
+		My.W_g(i) = Rnd() * 0.8 + 0.1
 	End if
 Next i
 
@@ -577,18 +580,18 @@ For Each movie in movies
 						// 満足度を受け取るかどうかの判定
 						If rand < (0.013*movie.review^2)^user.viewStep(1, movie.IDNo) Then
 							info = info + movie.greed * My.wGreed(movie.IDNo)
-							If My.wGreed(movie.IDNo) == 1 Then
-								//  一度情報を受け取ったら、以降の影響度は減少する
-								My.wGreed(movie.IDNo) = 0.5
-							End if
+//						If My.wGreed(movie.IDNo) == 1 Then
+							//  一度情報を受け取ったら、以降の影響度は減少する
+							My.wGreed(movie.IDNo) = My.wGreed(movie.IDNo) * 0.8
+//						End if
 						End if
 						// 批評値を受け取るかどうかの判定
 						If rand < 0.374 Then
 							info = info + movie.criticism * My.wCriticism(movie.IDNo)
-							If My.wCriticism(movie.IDNo) == 1 Then
-								//  一度情報を受け取ったら、以降の影響度は減少する
-								My.wCriticism(movie.IDNo) = 0.5
-							End if
+//						If My.wCriticism(movie.IDNo) == 1 Then
+							//  一度情報を受け取ったら、以降の影響度は減少する
+							My.wCriticism(movie.IDNo) = My.wCriticism(movie.IDNo) * 0.8
+//						End if
 						End if
 					Next user
 				End if
@@ -598,7 +601,7 @@ For Each movie in movies
 						If follower.viewStep(0, movie.IDNo) == 0 Then
 							// followerが作品を未鑑賞の場合は、最も情報量が蓄積された作品についての情報を流す
 							If movie.IDNo == follower.max_info_movie Then
-								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を8割にする
+								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を5割にする
 								My.Info(movie.IDNo) = My.Info(movie.IDNo) + follower.Info(movie.IDNo) * My.effectiveness * 0.5
 							End if
 						Else
@@ -606,18 +609,18 @@ For Each movie in movies
 							// 満足度を受け取るかどうかの判定
 							If rand < (0.013*movie.review^2)^follower.viewStep(1, movie.IDNo) Then
 								info = info + movie.greed * My.wGreed(movie.IDNo)
-								If My.wGreed(movie.IDNo) == 1 Then
-									//  一度情報を受け取ったら、以降の影響度は減少する
-									My.wGreed(movie.IDNo) = 0.5
-								End if
+//							If My.wGreed(movie.IDNo) == 1 Then
+								//  一度情報を受け取ったら、以降の影響度は減少する
+								My.wGreed(movie.IDNo) = My.wGreed(movie.IDNo) * 0.8
+//							End if
 							End if
 							// 批評値を受け取るかどうかの判定
 							If rand < 0.374 Then
 								info = info + movie.criticism * My.wCriticism(movie.IDNo)
-								If My.wCriticism(movie.IDNo) == 1 Then
-									//  一度情報を受け取ったら、以降の影響度は減少する
-									My.wCriticism(movie.IDNo) = 0.5
-								End if
+//							If My.wCriticism(movie.IDNo) == 1 Then
+								//  一度情報を受け取ったら、以降の影響度は減少する
+								My.wCriticism(movie.IDNo) = My.wCriticism(movie.IDNo) * 0.8
+//							End if
 							End if
 						End if
 					Next follower
@@ -629,7 +632,7 @@ For Each movie in movies
 //						If consumer.viewStep(0, movie.IDNo) == 0 Then
 //							// followerが作品を未鑑賞の場合は、最も情報量が蓄積された作品についての情報を流す
 //							If movie.IDNo == consumer.max_info_movie Then
-//								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を8割にする
+//								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を5割にする
 //								My.Info(movie.IDNo) = My.Info(movie.IDNo) + consumer.Info(movie.IDNo) * My.effectiveness * 0.5
 //							End if
 //						Else
@@ -637,18 +640,18 @@ For Each movie in movies
 //							// 満足度を受け取るかどうかの判定
 //							If rand < (0.013*movie.review^2)^consumer.viewStep(1, movie.IDNo) Then
 //								info = info + movie.greed * My.wGreed(movie.IDNo)
-//								If My.wGreed(movie.IDNo) == 1 Then
-//									//  一度情報を受け取ったら、以降の影響度は減少する
-//									My.wGreed(movie.IDNo) = 0.5
-//								End if
+//							If My.wGreed(movie.IDNo) == 1 Then
+//								//  一度情報を受け取ったら、以降の影響度は減少する
+//								My.wGreed(movie.IDNo) = My.wGreed(movie.IDNo) * 0.8
+//							End if
 //							End if
 //							// 批評値を受け取るかどうかの判定
 //							If rand < 0.374 Then
 //								info = info + movie.criticism * My.wCriticism(movie.IDNo)
-//								If My.wCriticism(movie.IDNo) == 1 Then
-//									//  一度情報を受け取ったら、以降の影響度は減少する
-//									My.wCriticism(movie.IDNo) = 0.5
-//								End if
+//							If My.wCriticism(movie.IDNo) == 1 Then
+//								//  一度情報を受け取ったら、以降の影響度は減少する
+//								My.wCriticism(movie.IDNo) = My.wCriticism(movie.IDNo) * 0.8
+//							End if
 //							End if
 //						End if
 //					Next consumer
@@ -700,10 +703,10 @@ For i=0 to 7
 	If rand < Universe.genreRatio(i) Then // ジャンル選好割合に応じて重み付けを行う
 		My.W_g(i) = 1
 	// 1/0 から少しだけ変更してみる
-//	Elseif rand > 0.9 Then // 10 % はそのジャンルが嫌いで重みを 0 とする
-//		My.W_g(i) = 0
+	Elseif rand > 0.9 Then // 10 % はそのジャンルが嫌いで重みを 0 とする
+		My.W_g(i) = 0
 	Else // 好きでも嫌いでもない場合は、0.1~0.9の値をランダムに与える
-		My.W_g(i) = 0//Rnd() * 0.8 + 0.1
+		My.W_g(i) = Rnd() * 0.8 + 0.1
 	End if
 Next i
 
@@ -770,7 +773,7 @@ For Each movie in movies
 						If follower.viewStep(0, movie.IDNo) == 0 Then
 							// followerが作品を未鑑賞の場合は、最も情報量が蓄積された作品についての情報を流す
 							If movie.IDNo == follower.max_info_movie Then
-								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を8割にする
+								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を5割にする
 								My.Info(movie.IDNo) = My.Info(movie.IDNo) + follower.Info(movie.IDNo) * My.effectiveness * 0.5
 							End if
 						Else
@@ -778,18 +781,18 @@ For Each movie in movies
 							// 満足度を受け取るかどうかの判定
 							If rand < (0.013*movie.review^2)^follower.viewStep(1, movie.IDNo) Then
 								info = info + movie.greed * My.wGreed(movie.IDNo)
-								If My.wGreed(movie.IDNo) == 1 Then
-									//  一度情報を受け取ったら、以降の影響度は減少する
-									My.wGreed(movie.IDNo) = 0.5
-								End if
+//							If My.wGreed(movie.IDNo) == 1 Then
+								//  一度情報を受け取ったら、以降の影響度は減少する
+								My.wGreed(movie.IDNo) = My.wGreed(movie.IDNo) * 0.8
+//							End if
 							End if
 							// 批評値を受け取るかどうかの判定
 							If rand < 0.374 Then
 								info = info + movie.criticism * My.wCriticism(movie.IDNo)
-								If My.wCriticism(movie.IDNo) == 1 Then
-									//  一度情報を受け取ったら、以降の影響度は減少する
-									My.wCriticism(movie.IDNo) = 0.5
-								End if
+//							If My.wCriticism(movie.IDNo) == 1 Then
+								//  一度情報を受け取ったら、以降の影響度は減少する
+								My.wCriticism(movie.IDNo) = My.wCriticism(movie.IDNo) * 0.8
+//							End if
 							End if
 						End if
 					Next follower
@@ -800,7 +803,7 @@ For Each movie in movies
 						If consumer.viewStep(0, movie.IDNo) == 0 Then
 							// consumerが作品を未鑑賞の場合は、最も情報量が蓄積された作品についての情報を流す
 							If movie.IDNo == consumer.max_info_movie Then
-								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を8割にする
+								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を5割にする
 								My.Info(movie.IDNo) = My.Info(movie.IDNo) + consumer.Info(movie.IDNo) * My.effectiveness * 0.5
 							End if
 						Else
@@ -808,18 +811,18 @@ For Each movie in movies
 							// 満足度を受け取るかどうかの判定
 							If rand < (0.013*movie.review^2)^consumer.viewStep(1, movie.IDNo) Then
 								info = info + movie.greed * My.wGreed(movie.IDNo)
-								If My.wGreed(movie.IDNo) == 1 Then
-									//  一度情報を受け取ったら、以降の影響度は減少する
-									My.wGreed(movie.IDNo) = 0.5
-								End if
+//							If My.wGreed(movie.IDNo) == 1 Then
+								//  一度情報を受け取ったら、以降の影響度は減少する
+								My.wGreed(movie.IDNo) = My.wGreed(movie.IDNo) * 0.8
+//							End if
 							End if
 							// 批評値を受け取るかどうかの判定
 							If rand < 0.374 Then
 								info = info + movie.criticism * My.wCriticism(movie.IDNo)
-								If My.wCriticism(movie.IDNo) == 1 Then
-									//  一度情報を受け取ったら、以降の影響度は減少する
-									My.wCriticism(movie.IDNo) = 0.5
-								End if
+//							If My.wCriticism(movie.IDNo) == 1 Then
+								//  一度情報を受け取ったら、以降の影響度は減少する
+								My.wCriticism(movie.IDNo) = My.wCriticism(movie.IDNo) * 0.8
+//							End if
 							End if
 						End if
 					Next consumer
