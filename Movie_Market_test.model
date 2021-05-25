@@ -1,0 +1,1360 @@
+//====================================================================/
+//　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　/
+// artisoc                                                            /
+//                                                                    /
+//====================================================================/
+
+Version = 4.2.1;
+
+
+
+//-------------------------------------------------------
+// Component Tree
+//-------------------------------------------------------
+UNIVERSE {
+    Space Internet(0,0),Square_2D(40, 40, Loop, North, 1, !Map_3D){
+        AgtType user(0, 0)[0] {
+            Dim ID(0, 0) As Integer = (0);
+            Dim X(0, 0) As Double = (0.0);
+            Dim Y(0, 0) As Double = (0.0);
+            Dim Layer(0, 0) As Integer = (0);
+            Dim Direction(0, 0) As Double = (0.0);
+            Dim transmission_range(0, 0) As Integer = (0);
+            Dim IDNo(0, 0) As Integer = ();
+            Dim viewStep(0, 0)[18][18] As Integer = ();
+        }
+        AgtType follower(0, 0)[0] {
+            Dim ID(0, 0) As Integer = (0);
+            Dim X(0, 0) As Double = (0.0);
+            Dim Y(0, 0) As Double = (0.0);
+            Dim Layer(0, 0) As Integer = (0);
+            Dim Direction(0, 0) As Double = (0.0);
+            Dim transmission_range(0, 0) As Integer = (0);
+            Dim Info(0, 0) <2> [18] As Double = (18*0.0);
+            Dim IDNo(0, 0) As Integer = ();
+            Dim W_g(0, 0)[8] As Integer = ();
+            Dim categoryThreshold(0, 0) As Double = ();
+            Dim effectiveness(0, 0) As Double = ();
+            Dim wGreed(0, 0)[18] As Integer = ();
+            Dim wCriticism(0, 0)[18] As Integer = ();
+            Dim viewStep(0, 0)[18][18] As Integer = ();
+            Dim infoThreshold(0, 0) As Double = ();
+            Dim viewNum(0, 0) As Integer = ();
+            Dim Utility(0, 0)[18] As Double = ();
+        }
+    }
+    Space Social(0,0),Square_2D(40, 40, Loop, North, 1, !Map_3D){
+        AgtType consumer(0, 0)[0] {
+            Dim ID(0, 0) As Integer = (0);
+            Dim X(0, 0) As Double = (0.0);
+            Dim Y(0, 0) As Double = (0.0);
+            Dim Layer(0, 0) As Integer = (0);
+            Dim Direction(0, 0) As Double = (0.0);
+            Dim transmission_range(0, 0) As Integer = (0);
+            Dim Info(0, 0) <2> [18] As Double = (18*0.0);
+            Dim IDNo(0, 0) As Integer = ();
+            Dim W_g(0, 0)[8] As Integer = ();
+            Dim categoryThreshold(0, 0) As Double = ();
+            Dim effectiveness(0, 0) As Double = ();
+            Dim wGreed(0, 0)[18] As Integer = ();
+            Dim wCriticism(0, 0)[18] As Integer = ();
+            Dim viewStep(0, 0)[18][18] As Integer = ();
+            Dim infoThreshold(0, 0) As Double = ();
+            Dim viewNum(0, 0) As Integer = ();
+            Dim Utility(0, 0)[18] As Double = ();
+        }
+    }
+    Dim user_ratio(0, 0) As Double = (0.0);
+    Dim follower_ratio(0, 0) As Double = (0.0);
+    Dim consumer_ratio(0, 0) As Double = (0.0);
+    Dim num_agent(0, 0) As Integer = (0);
+    Dim genreRatio(0, 0)[8] As Double = ();
+    AgtType movie(0, 0)[0] {
+        Dim ID(0, 0) As Integer = ();
+        Dim review(0, 0) As Double = ();
+        Dim greed(0, 0) As Double = ();
+        Dim criticism(0, 0) As Double = ();
+        Dim alpha(0, 0) As Integer = ();
+        Dim startDate(0, 0) As Integer = ();
+        Dim genre(0, 0) As Integer = ();
+        Dim promotion(0, 0) As Double = ();
+        Dim promProb(0, 0) As Double = ();
+        Dim IDNo(0, 0) As Integer = ();
+        Dim numAudience(0, 0) As Integer = ();
+    }
+    Dim test(0, 0)[18] As Integer = ();
+}
+
+
+//-------------------------------------------------------
+// Agent Variable Initial Data
+//-------------------------------------------------------
+Initial_Value {
+    UNIVERSE.USER_RATIO = 1(0.16);
+    UNIVERSE.FOLLOWER_RATIO = 1(0.24);
+    UNIVERSE.CONSUMER_RATIO = 1(0.6);
+    UNIVERSE.NUM_AGENT = 1(500);
+    UNIVERSE.GENRERATIO = 1(0.2, 0.27, 0.43, 0.45, 0.48, 0.6, 0.61, 0.69);
+}
+
+
+//-------------------------------------------------------
+// Agent Rule
+//-------------------------------------------------------
+#begin_rule UNIVERSE
+/*
+情報量が閾値を超えた場合、
+効用値が閾値を超えた場合に、
+エージェントは映画を鑑賞する
+*/
+Univ_Init{
+Dim num_netuser As Integer, num_netfollower As Integer, num_consumer As Integer
+Dim netuser As Agtset, netfollower As Agtset, consumer As Agtset
+Dim _ As Agt
+Dim i As Integer, j As Integer
+Dim min As Double, criteria As Double
+
+// 各エージェントタイプの割合の合計が1じゃない場合はシミュレーションを中止
+If Universe.user_ratio + Universe.follower_ratio + Universe.consumer_ratio != 1 Then
+	ExitSimulationMsgLn("Sum of ratio is not 1")
+End If
+
+
+// 乱数シードの指定
+SetRandomSeed(88)
+
+
+//映画を生成
+OpenFileCSV("data/Genre_Data.csv", 1, 1) // 映画のジャンル情報を持つファイル
+OpenFileCSV("data/review_Data.csv", 2, 1) // 映画の評価情報を持つファイル
+//OpenFileCSV("data/review_Data_uni.csv", 2, 1) // 実評価統一Version(5で統一)
+OpenFileCSV("data/Ad_Data.csv", 3, 1) // 映画の宣伝費情報を持つファイル
+OpenFileCSV("data/Date_Data.csv", 4, 1) // 映画の公開日情報を持つファイル
+min = CInt(ReadFileCSV(3)) // 宣伝費の最小値を取得する
+criteria = CInt(ReadFileCSV(3)) // 宣伝費を10段階評価するための基準値
+For i=0 to 17
+	_ = CreateAgt(Universe.movie) // 映画を生成
+	_.genre = CInt(ReadFileCSV(1)) // ジャンルを取得
+	_.review = CDbl(ReadFileCSV(2)) // 評価値を取得
+	_.alpha = CInt(ReadFileCSV(3)) // 宣伝費を取得
+	_.startDate = CInt(ReadFileCSV(4)) // 公開日を取得
+	_.IDNo = i // 映画の番号を付与
+	For j=1 to 9 // 宣伝ウェイトを計算
+		If _.alpha < min+criteria*j Then
+			_.alpha = j
+			Break
+		End if
+	Next j
+	If j == 10 Then
+		_.alpha = 10
+	End if
+//	_.alpha=7 // 宣伝ウェイトを統一してみる
+	_.promProb = 0.08 * _.alpha // 宣伝接触確率を計算(n_P=0.08)
+	_.greed = (_.review^3) / (_.alpha^2) // 満足度を計算(m_G=3, n_G=2)
+	If _.review >= 7.4 Then // 批評値を計算(v=7.4)
+		_.criticism = _.review
+	else
+		_.criticism = -(10-_.review) * 3 // beta=3
+	End if
+	println(i & " : " & _.alpha) // デバッグ用
+Next i
+For i=1 to 4 // ファイルを閉じる
+	CloseFileCSV(i)
+Next i
+
+
+// ネットユーザーエージェントを生成
+num_netuser = Round(Universe.num_agent * Universe.user_ratio)
+For i=0 to num_netuser-1
+	_ = CreateAgt(Universe.Internet.user)
+	_.IDNo = i // エージェントに識別番号を付与する
+Next i
+MakeAgtset(netuser, Universe.Internet.user)
+RandomPutAgtSetCell(netuser, True)
+
+
+// ネットフォロワーエージェントを生成
+num_netfollower = Round(Universe.num_agent * Universe.follower_ratio)
+For i=0 to num_netfollower-1
+	_ = CreateAgt(Universe.Internet.follower)
+	_.IDNo = i // エージェントに識別番号を付与する
+Next i
+MakeAgtset(netfollower, Universe.Internet.follower)
+RandomPutAgtSetCell(netfollower, True)
+
+
+// 一般消費者エージェントを生成
+num_consumer = Round(Universe.num_agent * Universe.consumer_ratio)
+For i=0 to num_consumer-1
+	_ = CreateAgt(Universe.Social.consumer)
+	_.IDNo = i // エージェントに識別番号を付与する
+Next i
+MakeAgtsetSpace(consumer, Universe.Social)
+RandomPutAgtSetCell(consumer, True)
+
+
+// 出力ファイルを初期化（完成後は注意）
+OpenFileCSV("analysis/Audience_Data.csv", 1, 2) // 映画動員数確認用のファイル
+OpenFileCSV("analysis/follower_Info.csv", 2, 2) // ネットフォロワーの映画情報量の確認用のファイル
+OpenFileCSV("analysis/follower_View.csv", 3, 2) // ネットフォロワーの鑑賞状況の確認用のファイル
+OpenFileCSV("analysis/follower_Utility.csv", 4, 2) // ネットフォロワーの映画効用値の確認用のファイル
+OpenFileCSV("analysis/consumer_Info.csv", 5, 2) // 一般消費者の映画情報量の確認用のファイル
+OpenFileCSV("analysis/consumer_View.csv", 6, 2) // 一般消費者の鑑賞状況の確認用のファイル
+OpenFileCSV("analysis/consumer_Utility.csv", 7, 2) // 一般消費者の映画効用値の確認用のファイル
+WriteFileCSV(1, "Step", True)
+WriteFileCSV(2, "Step", True)
+WriteFileCSV(3, "Step", True)
+WriteFileCSV(4, "movieID", True)
+WriteFileCSV(5, "Step", True)
+WriteFileCSV(6, "Step", True)
+WriteFileCSV(7, "movieID", True)
+
+CloseFileCSV(1)
+CloseFileCSV(2)
+CloseFileCSV(3)
+CloseFileCSV(4)
+CloseFileCSV(5)
+CloseFileCSV(6)
+CloseFileCSV(7)
+}
+
+Univ_Step_Begin{
+Dim agents As Agtset, movies As Agtset
+Dim one As Agt, movie As Agt
+
+MakeAgtSet(movies, Universe.movie)
+MakeAgtSetSpace(agents, Universe.Internet)
+For Each one in agents
+	For Each movie in movies
+		// 鑑賞済みの作品の経過日数を更新する
+		If one.viewStep(0, movie.IDNo) >= 1 Then
+			one.viewStep(1, movie.IDNo) = one.viewStep(1, movie.IDNo) + 1
+		End if
+	Next movie
+Next one
+MakeAgtSetSpace(agents, Universe.Social)
+For Each one in agents
+	For Each movie in movies
+		// 鑑賞済みの作品の経過日数を更新する
+		If one.viewStep(0, movie.IDNo) >= 1 Then
+			one.viewStep(1, movie.IDNo) = one.viewStep(1, movie.IDNo) + 1
+		End if
+	Next movie
+Next one
+
+// 動員数の初期化
+For Each movie in movies
+	movie.numAudience = 0
+Next movie
+}
+
+Univ_Step_End{
+Dim movies As Agtset, followers As Agtset, consumers As Agtset
+Dim movie As Agt, follower As Agt, consumer As Agt
+Dim nowStep As Integer
+
+nowStep = GetCountStep()
+PrintLn("Step : " & nowStep)
+
+// ネットフォロワーについて、サイズ( Step, NumMovie*NumAgent )の表を作成
+MakeAgtSet(movies, Universe.movie)
+MakeAgtSet(followers, Universe.Internet.follower)
+MakeAgtSet(consumers, Universe.Social.consumer)
+SortAgtSet(movies, "IDNo", True)
+SortAgtSet(followers, "IDNo", True)
+SortAgtSet(consumers, "IDNo", True)
+OpenFileCSV("analysis/Audience_Data.csv", 1, 3) // 動員数を記録
+OpenFileCSV("analysis/follower_Info.csv", 2, 3) // 各エージェントの保有情報量を記録
+OpenFileCSV("analysis/follower_View.csv", 3, 3) // 1 エージェントの鑑賞状況を記録
+OpenFileCSV("analysis/consumer_Info.csv", 4, 3)
+OpenFileCSV("analysis/consumer_View.csv", 5, 3)
+WriteFileCSV(1, nowStep, False) // 1列目にステップ数を記録
+WriteFileCSV(2, nowStep, False)
+WriteFileCSV(3, nowStep, False)
+WriteFileCSV(4, nowStep, False)
+WriteFileCSV(5, nowStep, False)
+For Each movie in movies
+	WriteFileCSV(1, movie.numAudience, False)
+	universe.test(movie.IDNo) = movie.numAudience // 作品毎の動員数を記録
+	For Each follower in followers
+		WriteFileCSV(2, follower.Info(movie.IDNo), False) // 作品毎に、全フォロワーエージェントの情報保有量を記録していく
+		WriteFileCSV(3, follower.viewStep(0, movie.IDNo), False) // 作品毎に、全フォロワーエージェントの鑑賞回数(フラグ)を記録していく
+	Next follower
+	For Each consumer in consumers
+		WriteFileCSV(4, consumer.Info(movie.IDNo), False)
+		WriteFileCSV(5, consumer.viewStep(0, movie.IDNo), False)
+	Next consumer
+Next movie
+WriteFileCSV(1, "", True) // 改行する
+WriteFileCSV(2, "", True)
+WriteFileCSV(3, "", True)
+WriteFileCSV(4, "", True)
+WriteFileCSV(5, "", True)
+CloseFileCSV(1)
+CloseFileCSV(2)
+CloseFileCSV(3)
+CloseFileCSV(4)
+CloseFileCSV(5)
+
+// 400日（ステップ）で終了
+If GetCountStep() == 400 Then
+	ExitSimulationMsgLn("400 steps passed")
+End if
+}
+
+Univ_Finish{
+Dim followers As Agtset, consumers As Agtset, movies As Agtset
+Dim follower As Agt, consumer As Agt, movie As Agt
+
+MakeAgtset(followers, Universe.Internet.follower)
+MakeAgtset(consumers, Universe.Social.consumer)
+MakeAgtset(movies, Universe.movie)
+SortAgtSet(followers, "IDNo", True)
+SortAgtSet(consumers, "IDNo", True)
+SortAgtSet(movies, "IDNo", True)
+OpenFileCSV("analysis/follower_Utility.csv", 1, 3)
+OpenFileCSV("analysis/consumer_Utility.csv", 2, 3)
+For Each movie in movies
+	WriteFileCSV(1, movie.IDNo, False)
+	WriteFileCSV(2, movie.IDNo, False)
+	For Each follower in followers
+		WriteFileCSV(1, follower.Utility(movie.IDNo), False)
+	Next follower
+	For Each consumer in consumers
+		WriteFileCSV(2, consumer.Utility(movie.IDNo), False)
+	Next consumer
+	WriteFileCSV(1, "", True)
+	WriteFileCSV(2, "", True)
+Next movie
+CloseFileCSV(1)
+CloseFileCSV(2)
+
+PrintLn("Net User : " & CountAgt(Universe.Internet.user))
+PrintLn("Net Follower : " & CountAgt(Universe.Internet.follower))
+PrintLn("Consumer : " & CountAgt(Universe.Social.consumer))
+}
+
+
+
+
+
+
+// 消費者カテゴリーを取得する
+Function getCategoryThreshold(param As Double) As Double {
+
+If param < 0.16 Then // 16% が初期採用消費者
+	return Rnd() * 50 + 940
+elseif param < 0.50 Then // 34% が前期採用消費者
+	return Rnd() * 50 + 990
+elseif param < 0.84 Then // 34% が後期採用消費者
+	return Rnd() * 100 + 1500
+else // 16% が採用遅滞消費者
+	return Rnd() * 100 + 2100
+End if
+}
+#end_rule UNIVERSE
+
+
+
+
+//-------------------------------------------------------
+// Agent Rule
+//-------------------------------------------------------
+#begin_rule UNIVERSE.INTERNET.USER
+// ネットユーザーはネットフォロワーに情報を伝達する
+// 宣伝や口コミで既に映画の情報を持っているフォロワーに情報を伝達する
+Agt_Init{
+Dim movies As Agtset
+Dim movie As Agt
+
+// ネットユーザーエージェントの情報伝達範囲は周囲10近傍(21*21セルの正方形内)
+My.transmission_range = 10
+
+// 作品毎のパラメータを決定する
+MakeAgtSet(movies, Universe.movie)
+For Each movie in movies
+	// 初期化
+	My.viewStep(0, movie.IDNo) = 0 // 鑑賞回数の初期化
+	My.viewStep(1, movie.IDNo) = 0 // 観賞後の経過時間の初期化
+Next movie
+}
+
+Agt_Step{
+Dim movies As Agtset
+Dim movie As Agt
+Dim date As Integer
+
+// 鑑賞情報の更新
+date = GetCountStep()
+MakeAgtSet(movies, Universe.movie)
+For Each movie in movies
+	If date == movie.startDate Then // ネットユーザーは映画を鑑賞済みである設定
+		If My.viewStep(0, movie.IDNo) == 0 Then
+			My.viewStep(0, movie.IDNo) = 1
+		End if
+	End if
+Next movie
+
+// ランダムに移動
+ForwardDirectionCell(Int(Rnd()*8), 1)
+}
+#end_rule UNIVERSE.INTERNET.USER
+
+
+
+
+//-------------------------------------------------------
+// Agent Rule
+//-------------------------------------------------------
+#begin_rule UNIVERSE.INTERNET.FOLLOWER
+// ネットフォロワーは一般消費者とネットフォロワーに情報を伝達する
+Agt_Init{
+Dim movies As Agtset
+Dim movie As Agt
+Dim i As Integer
+
+// ネットフォロワーエージェントの情報伝達範囲は周囲1近傍(1*1セルの正方形内)
+My.transmission_range = 1
+
+// ジャンル毎の選好度を決定する
+For i=0 to 7
+	If Rnd() < Universe.genreRatio(i) Then // ジャンル選好割合に応じて重み付けを行う
+		My.W_g(i) = 1
+	else
+		My.W_g(i) = 0
+	End if
+Next i
+
+// 商品の採用時期による消費者集団の分類に応じて閾値を決定(最終的な鑑賞閾値決定に使用)
+My.categoryThreshold = @getCategoryThreshold(Rnd())
+
+// 作品毎のパラメータを決定する
+MakeAgtSet(movies, Universe.movie)
+For Each movie in movies
+	// 鑑賞効用値の決定(r_U=0.66, n_U=2)
+	My.Utility(movie.IDNo) = 0.66 * (movie.review^2) * My.W_g(movie.genre-1)
+	// 初期化
+	My.Info(movie.IDNo) = 0 // 作品情報量の初期化
+	My.wGreed(movie.IDNo) = 1 // 満足度受信重みの初期化
+	My.wCriticism(movie.IDNo) = 1 // 批評値受信重みの初期化
+	My.viewStep(0, movie.IDNo) = 0 // 鑑賞回数の初期化
+	My.viewStep(1, movie.IDNo) = 0 // 観賞後の経過時間の初期化
+Next movie
+
+// エージェントの被影響性を決定
+My.effectiveness = Rnd() + 0.7
+
+// 映画鑑賞回数の初期化
+My.viewNum = 0
+}
+
+Agt_Step{
+Dim movies As Agtset, followers As Agtset, consumers As Agtset, users As Agtset
+Dim movie As Agt, follower As Agt, consumer As Agt, user As Agt
+Dim info As Double
+Dim date As Integer
+
+MakeAgtSet(movies, Universe.movie)
+SortAgtSet(movies, "IDNo", True)
+MakeOneAgtSetAroundOwnCell(users, 10, Universe.Internet.user, False)
+MakeOneAgtSetAroundOwnCell(followers, My.transmission_range, Universe.Internet.follower, False)
+MakeOneAgtSetAroundPositionCell(consumers, Universe.Social, My.X, My.Y, 0, My.transmission_range, Universe.Social.consumer)
+date = GetCountStep()
+// 鑑賞閾値は映画の鑑賞回数に応じて減衰する(sigma=0.99)
+My.infoThreshold = My.categoryThreshold / (0.99^My.viewNum)
+
+// 鑑賞意思決定
+For Each movie in movies
+
+	If (date < movie.startDate-30) Or (My.viewStep(0, movie.IDNo)>=1) Then	
+		// 公開の30日以上前は何も行わない
+		// 鑑賞済みの作品についても情報の受信は行わない
+	else
+		info = 0 // 情報受信量の初期化
+		// 宣伝に接触するかどうかを判定
+		If Rnd() < movie.promProb Then
+			info = info + movie.promotion // 宣伝情報量を追加
+		End if
+		// 周囲のエージェントから、知覚している作品の情報を受信する
+		If date > movie.startDate Then // 実評価値は公開以降のみ受け取り可能？
+			If My.Info(movie.IDNo) != 0 Then // 知覚していない作品の情報は受信できない
+				// ネットユーザーから情報を受信するかどうかの判定
+				If CountAgtSet(users) > 0 Then
+					For Each user in users
+						// 満足度を受け取るかどうかの判定
+						If Rnd() < (0.018*movie.review^2)^user.viewStep(0, movie.IDNo) Then
+							info = info + movie.greed * My.wGreed(movie.IDNo)
+						End if
+						// 批評値を受け取るかどうかの判定
+						If Rnd() < 0.0374 Then
+							info = info + movie.criticism * My.wCriticism(movie.IDNo)
+						End if
+					Next user
+				End if
+				// ネットフォロワーから情報を受信するかどうかの判定
+				If CountAgtSet(followers) > 0 Then
+					For Each follower in followers
+						// 満足度を受け取るかどうかの判定
+						If Rnd() < (0.018*movie.review^2)^follower.viewStep(0, movie.IDNo) Then
+							info = info + movie.greed * My.wGreed(movie.IDNo)
+						End if
+						// 批評値を受け取るかどうかの判定
+						If Rnd() < 0.0374 Then
+							info = info + movie.criticism * My.wCriticism(movie.IDNo)
+						End if
+					Next follower
+				End if
+				// 一般消費者から情報を受信するかどうかの判定
+				If CountAgtSet(consumers) > 0 Then
+					For Each consumer in consumers
+						// 満足度を受け取るかどうかの判定
+						If Rnd() < (0.018*movie.review^2)^consumer.viewStep(0, movie.IDNo) Then
+							info = info + movie.greed * My.wGreed(movie.IDNo)
+						End if
+						// 批評値を受け取るかどうかの判定
+						If Rnd() < 0.0374 Then
+							info = info + movie.criticism * My.wCriticism(movie.IDNo)
+						End if
+					Next consumer
+				End if
+			End if
+		End if
+		
+		// 情報量を蓄積
+		My.Info(movie.IDNo) = My.Info(movie.IDNo) + info * My.effectiveness
+
+		// 閾値比較による鑑賞意思決定
+		If (date > movie.startDate) And // 作品が公開済み
+				( My.Info(movie.IDNo)>My.infoThreshold Or // 情報量が閾値を超える 
+					 My.Utility(movie.IDNo)>Rnd()*35+1) Then // 作品効用値が閾値を超える(h=35, l=30)
+			My.viewStep(0, movie.IDNo) = My.viewStep(0, movie.IDNo) + 1 // 作品(movie)の鑑賞回数を増やす(フラグを立てる)
+			My.viewNum = My.viewNum + 1 // 映画の鑑賞回数を増やす
+			movie.numAudience = movie.numAudience + 1 // 作品の動員数を増やす
+		End if
+
+	End if
+Next movie
+
+// ランダムに移動
+ForwardDirectionCell(Int(Rnd()*8), 1)
+}
+#end_rule UNIVERSE.INTERNET.FOLLOWER
+
+
+
+
+//-------------------------------------------------------
+// Agent Rule
+//-------------------------------------------------------
+#begin_rule UNIVERSE.SOCIAL.CONSUMER
+// 一般消費者は一般消費者に情報を伝達する
+Agt_Init{
+Dim movies As Agtset
+Dim movie As Agt
+Dim i As Integer
+
+// 一般消費者エージェントの情報伝達範囲は周囲1近傍(1*1セルの正方形内)
+My.transmission_range = 1
+
+// ジャンル毎の選好度を決定する
+For i=0 to 7
+	If Rnd() < Universe.genreRatio(i) Then // ジャンル選好割合に応じて重み付けを行う
+		My.W_g(i) = 1
+	else
+		My.W_g(i) = 0
+	End if
+Next i
+
+// 商品の採用時期による消費者集団の分類に応じて閾値を決定(最終的な鑑賞閾値決定に使用)
+My.categoryThreshold = @getCategoryThreshold(Rnd())
+
+// 作品毎のパラメータを決定する
+MakeAgtSet(movies, Universe.movie)
+For Each movie in movies
+	// 鑑賞効用値の決定(r_U=0.66, n_U=2)
+	My.Utility(movie.IDNo) = 0.66 * (movie.review^2) * My.W_g(movie.genre-1)
+	// 初期化
+	My.Info(movie.IDNo) = 0 // 作品情報量の初期化
+	My.wGreed(movie.IDNo) = 1 // 満足度受信重みの初期化
+	My.wCriticism(movie.IDNo) = 1 // 批評値受信重みの初期化
+	My.viewStep(0, movie.IDNo) = 0 // 鑑賞回数の初期化
+	My.viewStep(1, movie.IDNo) = 0 // 観賞後の経過時間の初期化
+Next movie
+
+// エージェントの被影響性を決定
+My.effectiveness = Rnd() + 0.7
+
+// 映画鑑賞回数の初期化
+My.viewNum = 0
+}
+
+Agt_Step{
+Dim movies As Agtset, followers As Agtset, consumers As Agtset
+Dim movie As Agt, follower As Agt, consumer As Agt
+Dim info As Double
+Dim date As Integer
+
+MakeAgtSet(movies, Universe.movie)
+SortAgtSet(movies, "IDNo", True)
+MakeOneAgtSetAroundOwnCell(consumers, My.transmission_range, Universe.Social.consumer, False)
+MakeOneAgtSetAroundPositionCell(followers, Universe.Internet, My.X, My.Y, 0, My.transmission_range, Universe.Internet.follower)
+date = GetCountStep()
+// 鑑賞閾値は映画の鑑賞回数に応じて減衰する(sigma=0.99)
+My.infoThreshold = My.categoryThreshold / (0.99^My.viewNum)
+
+// 鑑賞意思決定
+For Each movie in movies
+
+	If (date < movie.startDate-30) Or (My.viewStep(0, movie.IDNo)>=1) Then	
+		// 公開の30日以上前は何も行わない
+		// 鑑賞済みの作品についても情報の受信は行わない
+	else
+		info = 0 // 情報受信量の初期化
+		// 宣伝に接触するかどうかを判定
+		If Rnd() < movie.promProb Then
+			info = info + movie.promotion // 宣伝情報量を追加
+		End if
+		// 周囲のエージェントから、知覚している作品の情報を受信する
+		If date > movie.startDate Then // 実評価値は公開以降のみ受け取り可能？
+			If My.Info(movie.IDNo) != 0 Then // 知覚していない作品の情報は受信できない
+				// ネットフォロワーから情報を受信するかどうかの判定
+				If CountAgtSet(followers) > 0 Then
+					For Each follower in followers
+						// 満足度を受け取るかどうかの判定
+						If Rnd() < (0.018*movie.review^2)^follower.viewStep(0, movie.IDNo) Then
+							info = info + movie.greed * My.wGreed(movie.IDNo)
+						End if
+						// 批評値を受け取るかどうかの判定
+						If Rnd() < 0.0374 Then
+							info = info + movie.criticism * My.wCriticism(movie.IDNo)
+						End if
+					Next follower
+				End if
+				// 一般消費者から情報を受信するかどうかの判定
+				If CountAgtSet(consumers) > 0 Then
+					For Each consumer in consumers
+						// 満足度を受け取るかどうかの判定
+						If Rnd() < (0.018*movie.review^2)^consumer.viewStep(0, movie.IDNo) Then
+							info = info + movie.greed * My.wGreed(movie.IDNo)
+						End if
+						// 批評値を受け取るかどうかの判定
+						If Rnd() < 0.0374 Then
+							info = info + movie.criticism * My.wCriticism(movie.IDNo)
+						End if
+					Next consumer
+				End if
+			End if
+		End if
+		
+		// 情報量を蓄積
+		My.Info(movie.IDNo) = My.Info(movie.IDNo) + info * My.effectiveness
+		
+		// 閾値比較による鑑賞意思決定
+		If (date > movie.startDate) And // 作品が公開済み
+				( My.Info(movie.IDNo)>My.infoThreshold Or // 情報量が閾値を超える 
+					 My.Utility(movie.IDNo)>Rnd()*35+1) Then // 作品効用値が閾値を超える(h=35, l=30)
+			My.viewStep(0, movie.IDNo) = My.viewStep(0, movie.IDNo) + 1 // 作品(movie)の鑑賞回数を増やす(フラグを立てる)
+			My.viewNum = My.viewNum + 1 // 映画の鑑賞回数を増やす
+			movie.numAudience = movie.numAudience + 1 // 作品の動員数を増やす
+		End if
+		
+	End if
+Next movie
+
+// ランダムに移動
+ForwardDirectionCell(Int(Rnd()*8), 1)
+}
+#end_rule UNIVERSE.SOCIAL.CONSUMER
+
+
+
+
+//-------------------------------------------------------
+// Agent Rule
+//-------------------------------------------------------
+#begin_rule UNIVERSE.MOVIE
+Agt_Init{
+
+}
+
+Agt_Step{
+// 宣伝受信量を更新する(n_PP=2)
+My.promotion = ( My.alpha * Ad_rate(GetCountStep()-My.startDate) ) ^ 2
+}
+
+Function Ad_rate(date As Integer) As Double{
+// 宣伝量 Q(a) を返す
+
+// 公開の30日前から宣伝を開始する
+If date < -30 Then
+	return 0
+elseIf date < -7 Then // 公開の1週間前まではピーク時の7割
+	// n_q1 = 0.7
+	return 0.7
+elseif date < 0 Then // 公開の1週間前から宣伝はピークとなる
+	// n_q2 = 1.0
+	return 1.0
+elseif date < 90 Then // 公開後は徐々に宣伝の効果が減衰する
+	return 0.977^date
+else
+	return 0
+End if
+}
+#end_rule UNIVERSE.MOVIE
+
+
+
+
+//-------------------------------------------------------
+// Simulation Definition Division
+//-------------------------------------------------------
+Single_Simulation {
+    Step_Max = 0;
+    Time_Max = 0;
+    End_Condition = "";
+    Exec_Wait = 1;
+    Exec_Wait_Max = 1000;
+    Random_Generator = Java_Standard;
+    Exec_Order = Component;
+    Exec_Order_Random_First_Step_Only = No;
+    Random_Seed = 0;
+    Redraw_Timing = Step;
+    Redraw_Interval = 1;
+    Garbage_Interval = 0;
+}
+
+
+//-------------------------------------------------------
+// Simulation Loop Definition Division
+//-------------------------------------------------------
+Repeat_Simulation {
+    Value_Change = None;
+    Initial_Value_Change_None {
+        Repeat_Max = 1;
+    }
+}
+
+
+//-------------------------------------------------------
+// Executing Order By Agent Component Definition Division
+//-------------------------------------------------------
+Executing_Order_Component {
+    Component_Priority = "Universe.movie", 1;
+    Component_Priority = "Universe.Internet.user", 2;
+    Component_Priority = "Universe.Internet.follower", 3;
+    Component_Priority = "Universe.Social.consumer", 4;
+}
+
+
+//-------------------------------------------------------
+// 2 Dimension Map Display Definition Division
+//-------------------------------------------------------
+Map_Output {
+    Map_Space_Name = "Universe.Internet";
+    Map_Name = "Internet";
+    Title = "Internet";
+    Disable = No;
+    Background_Color = 255, 255, 255;
+    Position_x = 0;
+    Position_y = 0;
+    Size_x = 720;
+    Size_y = 275;
+    Map_Cell_Size = 5;
+    Remarks = Yes;
+    Legend_Pos = Top;
+    Font_Name = "Dialog";
+    Font_Char_Set = 81;
+    Font_Size = 12.0;
+    Font_Style = 0;
+    Font_Color = 0, 0, 0;
+    Font_Background_Color = 255, 255, 255;
+    FastDraw = Yes;
+    Draw_Timing = Simulation_Step;
+    Draw_Interval = 1;
+    Axis_Label = "", "";
+    Draw_Range = 0, 0, 40, 40;
+    Ruled_Line = Yes;
+    Text_Display = No;
+    Text_Display_Variable_Name = "";
+    Chess_Type_Display_Position = Yes;
+    Background_Transparent = No;
+    Target_Layer = 0;
+    Coordinate_Display = No;
+    Space_Kind = Square_2D;
+    BG_Pict = No;
+    BG_Type = 0;
+    BG_Var_Name = "";
+    BG_File_Name = "";
+    Origin_Position = 2;
+    Output_Group_Name = "";
+    Output {
+        Map_Element_Name = "user";
+        Map_Element = Agent_Variable;
+        Output_Expression = "Universe.Internet.user";
+        Draw_Line = No;
+        Collection_Name = "";
+        Line_Type = 0;
+        Line_Arrow = 0;
+        Line_Width = 0;
+        Line_Color = 0, 0, 0;
+        Line_Type_Variable = "";
+        Line_Arrow_Variable = "";
+        Line_Width_Variable = "";
+        Line_Color_Variable = "";
+        Agent_Color = 255,0,0;
+        Marker_Id = 2;
+        Effective_Figures = 0;
+        Format_Id = 0;
+        Agent_Image_Direction = No;
+        Icon_Type = 0;
+        Icon_Var_Name = "";
+        Icon_Transparent = No;
+        Icon_Enlarg_Reduce = No;
+        Icon_File_Name = "";
+        Num_Display = No;
+        Num_Var_Name = "";
+        Agent_Image_Magnify_by_value = Yes;
+        Agent_Image_Magnify_Value = 1.0;
+        Agent_Image_Magnify_Variable_Name = "Universe.Internet.user.ID";
+        Agent_Image_Transparency_by_value = Yes;
+        Agent_Image_Transparency_Value = 0.0;
+        Agent_Image_Transparency_Variable_Name = "Universe.Internet.user.ID";
+        Font_Name = "Dialog";
+        Font_Char_Set = 0;
+        Font_Size = 12.0;
+        Font_Style = 0;
+        Font_Color = 0, 0, 0;
+        Font_Background_Color = 0, 0, 0;
+    }
+    Output {
+        Map_Element_Name = "follower";
+        Map_Element = Agent_Variable;
+        Output_Expression = "Universe.Internet.follower";
+        Draw_Line = No;
+        Collection_Name = "";
+        Line_Type = 0;
+        Line_Arrow = 0;
+        Line_Width = 0;
+        Line_Color = 0, 0, 0;
+        Line_Type_Variable = "";
+        Line_Arrow_Variable = "";
+        Line_Width_Variable = "";
+        Line_Color_Variable = "";
+        Agent_Color = 0,0,255;
+        Marker_Id = 2;
+        Effective_Figures = 0;
+        Format_Id = 0;
+        Agent_Image_Direction = No;
+        Icon_Type = 0;
+        Icon_Var_Name = "";
+        Icon_Transparent = No;
+        Icon_Enlarg_Reduce = No;
+        Icon_File_Name = "";
+        Num_Display = No;
+        Num_Var_Name = "";
+        Agent_Image_Magnify_by_value = Yes;
+        Agent_Image_Magnify_Value = 1.0;
+        Agent_Image_Magnify_Variable_Name = "Universe.Internet.follower.ID";
+        Agent_Image_Transparency_by_value = Yes;
+        Agent_Image_Transparency_Value = 0.0;
+        Agent_Image_Transparency_Variable_Name = "Universe.Internet.follower.ID";
+        Font_Name = "Dialog";
+        Font_Char_Set = 0;
+        Font_Size = 12.0;
+        Font_Style = 0;
+        Font_Color = 0, 0, 0;
+        Font_Background_Color = 0, 0, 0;
+    }
+}
+
+
+//-------------------------------------------------------
+// 2 Dimension Map Display Definition Division
+//-------------------------------------------------------
+Map_Output {
+    Map_Space_Name = "Universe.Social";
+    Map_Name = "Social";
+    Title = "Social";
+    Disable = No;
+    Background_Color = 255, 255, 255;
+    Position_x = 0;
+    Position_y = 275;
+    Size_x = 720;
+    Size_y = 275;
+    Map_Cell_Size = 5;
+    Remarks = Yes;
+    Legend_Pos = Top;
+    Font_Name = "Dialog";
+    Font_Char_Set = 81;
+    Font_Size = 12.0;
+    Font_Style = 0;
+    Font_Color = 0, 0, 0;
+    Font_Background_Color = 255, 255, 255;
+    FastDraw = Yes;
+    Draw_Timing = Simulation_Step;
+    Draw_Interval = 1;
+    Axis_Label = "", "";
+    Draw_Range = 0, 0, 40, 40;
+    Ruled_Line = Yes;
+    Text_Display = No;
+    Text_Display_Variable_Name = "";
+    Chess_Type_Display_Position = Yes;
+    Background_Transparent = No;
+    Target_Layer = 0;
+    Coordinate_Display = No;
+    Space_Kind = Square_2D;
+    BG_Pict = No;
+    BG_Type = 0;
+    BG_Var_Name = "";
+    BG_File_Name = "";
+    Origin_Position = 2;
+    Output_Group_Name = "";
+    Output {
+        Map_Element_Name = "consumer";
+        Map_Element = Agent_Variable;
+        Output_Expression = "Universe.Social.consumer";
+        Draw_Line = No;
+        Collection_Name = "";
+        Line_Type = 0;
+        Line_Arrow = 0;
+        Line_Width = 0;
+        Line_Color = 0, 0, 0;
+        Line_Type_Variable = "";
+        Line_Arrow_Variable = "";
+        Line_Width_Variable = "";
+        Line_Color_Variable = "";
+        Agent_Color = 0,255,102;
+        Marker_Id = 2;
+        Effective_Figures = 0;
+        Format_Id = 0;
+        Agent_Image_Direction = No;
+        Icon_Type = 0;
+        Icon_Var_Name = "";
+        Icon_Transparent = No;
+        Icon_Enlarg_Reduce = No;
+        Icon_File_Name = "";
+        Num_Display = No;
+        Num_Var_Name = "";
+        Agent_Image_Magnify_by_value = Yes;
+        Agent_Image_Magnify_Value = 1.0;
+        Agent_Image_Magnify_Variable_Name = "Universe.Social.consumer.ID";
+        Agent_Image_Transparency_by_value = Yes;
+        Agent_Image_Transparency_Value = 0.0;
+        Agent_Image_Transparency_Variable_Name = "Universe.Social.consumer.ID";
+        Font_Name = "Dialog";
+        Font_Char_Set = 0;
+        Font_Size = 12.0;
+        Font_Style = 0;
+        Font_Color = 0, 0, 0;
+        Font_Background_Color = 0, 0, 0;
+    }
+}
+
+
+//-------------------------------------------------------
+// Time Graph Output Definition Division
+//-------------------------------------------------------
+Time_Graph {
+    Font_Name = "Dialog";
+    Font_Char_Set = 81;
+    Font_Size = 12.0;
+    Font_Style = 0;
+    Font_Color = 0, 0, 0;
+    Font_Background_Color = 255, 255, 255;
+    Draw_Timing = Simulation_Step;
+    Draw_Interval = 1;
+    Graph_Name = "NumberOfAudience";
+    Title = "NumberOfAudience";
+    Disable = No;
+    Background_Color = 255, 255, 255;
+    Remarks = Yes;
+    Legend_Pos = Top;
+    FastDraw = Yes;
+    Position_x = 0;
+    Position_y = 550;
+    Size_x = 720;
+    Size_y = 275;
+    Map_Cell_Size = -1;
+    Axis_Label = "step", "number";
+    Draw_By_JFree_Chart = Yes;
+    Scale = 0, 0.0, 1000, 100.0, 100, 10.0;
+    ScaleAuto = Yes, Yes;
+    Output_Group_Name = "";
+    Output {
+        Graph_Element_Name = "test0";
+        Line_Color = 128, 128, 128;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(0)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (0, 255, 0);
+    }
+    Output {
+        Graph_Element_Name = "test1";
+        Line_Color = 255, 0, 255;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(1)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (0, 255, 255);
+    }
+    Output {
+        Graph_Element_Name = "test2";
+        Line_Color = 0, 255, 255;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(2)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (255, 0, 0);
+    }
+    Output {
+        Graph_Element_Name = "test3";
+        Line_Color = 255, 255, 0;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(3)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (0, 0, 0);
+    }
+    Output {
+        Graph_Element_Name = "test4";
+        Line_Color = 128, 128, 128;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(4)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (0, 0, 255);
+    }
+    Output {
+        Graph_Element_Name = "test5";
+        Line_Color = 255, 0, 0;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(5)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (255, 0, 255);
+    }
+    Output {
+        Graph_Element_Name = "test6";
+        Line_Color = 0, 0, 255;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(6)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (255, 255, 0);
+    }
+    Output {
+        Graph_Element_Name = "test7";
+        Line_Color = 0, 255, 0;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(7)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (153, 0, 255);
+    }
+    Output {
+        Graph_Element_Name = "test8";
+        Line_Color = 255, 0, 255;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(8)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (102, 102, 102);
+    }
+    Output {
+        Graph_Element_Name = "test9";
+        Line_Color = 0, 255, 255;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(9)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (255, 153, 0);
+    }
+    Output {
+        Graph_Element_Name = "test10";
+        Line_Color = 255, 255, 0;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(10)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (0, 255, 204);
+    }
+    Output {
+        Graph_Element_Name = "test11";
+        Line_Color = 128, 128, 128;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(11)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (153, 153, 255);
+    }
+    Output {
+        Graph_Element_Name = "test12";
+        Line_Color = 255, 0, 0;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(12)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (153, 153, 0);
+    }
+    Output {
+        Graph_Element_Name = "test13";
+        Line_Color = 0, 0, 255;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(13)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (255, 153, 153);
+    }
+    Output {
+        Graph_Element_Name = "test14";
+        Line_Color = 0, 255, 0;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(14)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (51, 153, 255);
+    }
+    Output {
+        Graph_Element_Name = "test15";
+        Line_Color = 255, 0, 255;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(15)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (153, 0, 102);
+    }
+    Output {
+        Graph_Element_Name = "test16";
+        Line_Color = 0, 255, 255;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(16)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (204, 153, 255);
+    }
+    Output {
+        Graph_Element_Name = "test17";
+        Line_Color = 255, 255, 0;
+        Line_Width = 2;
+        Marker_Id = 0;
+        Output_Expression = "universe.test(17)";
+        Expression_Value_Display = No;
+        Effective_Fraction_Figures = 0;
+        Graph_Element_Color = (0, 102, 102);
+    }
+}
+
+
+//-------------------------------------------------------
+// Control Panel Definition Division
+//-------------------------------------------------------
+Control_Panel {
+    Display_Area = 2, 272, 150, 235;
+    Display_Type = 0;
+    Panel_Item {
+        Item_Type = Edit_Box;
+        Item_Name = "user_ratio";
+        Display_Area = 0, 0, 0, 0;
+        Font_Name = "";
+        Font_Char_Set = 0;
+        Font_Size = 0.0;
+        Font_Style = 0;
+        Font_Color = 0, 0, 0;
+        Font_Background_Color = 0, 0, 0;
+        Var_Name = "Universe.user_ratio";
+        Text_Data = "0.16";
+    }
+    Panel_Item {
+        Item_Type = Edit_Box;
+        Item_Name = "follower_ratio";
+        Display_Area = 0, 0, 0, 0;
+        Font_Name = "";
+        Font_Char_Set = 0;
+        Font_Size = 0.0;
+        Font_Style = 0;
+        Font_Color = 0, 0, 0;
+        Font_Background_Color = 0, 0, 0;
+        Var_Name = "Universe.follower_ratio";
+        Text_Data = "0.24";
+    }
+    Panel_Item {
+        Item_Type = Edit_Box;
+        Item_Name = "consumer_ratio";
+        Display_Area = 0, 0, 0, 0;
+        Font_Name = "";
+        Font_Char_Set = 0;
+        Font_Size = 0.0;
+        Font_Style = 0;
+        Font_Color = 0, 0, 0;
+        Font_Background_Color = 0, 0, 0;
+        Var_Name = "Universe.consumer_ratio";
+        Text_Data = "0.6";
+    }
+    Panel_Item {
+        Item_Type = Edit_Box;
+        Item_Name = "num_agent";
+        Display_Area = 0, 0, 0, 0;
+        Font_Name = "";
+        Font_Char_Set = 0;
+        Font_Size = 0.0;
+        Font_Style = 0;
+        Font_Color = 0, 0, 0;
+        Font_Background_Color = 0, 0, 0;
+        Var_Name = "Universe.num_agent";
+        Text_Data = "500";
+    }
+}
+
+
+//-------------------------------------------------------
+// Space Initial Value Definition Divsion
+//-------------------------------------------------------
+Space_Initial {
+}
+
+
+//-------------------------------------------------------
+// Other Miscellaneous Data Definition Division
+//-------------------------------------------------------
+Others_Data {
+    Indent = 4;
+    Rule_Colored = Yes;
+    Rule_LineNo = Yes;
+    Window_Hide_Run = 1;
+    Debug_Position_x = 75;
+    Debug_Position_y = 75;
+    Debug_Size_x = 400;
+    Debug_Size_y = 200;
+    Console_Position_x = 720;
+    Console_Position_y = 550;
+    Console_Size_x = 720;
+    Console_Size_y = 275;
+    Componen_Tree_Position_x = 720;
+    Componen_Tree_Position_y = 275;
+    Componen_Tree_Size_x = 720;
+    Componen_Tree_Size_y = 275;
+    Console_Background_Color = 16777215;
+    Console_Foreground_Color = 255;
+    Console_DisplayLines_Max = 500;
+    plug_in_module_name = "";
+    Font_Name = "Dialog";
+    Font_Char_Set = 0;
+    Font_Size = 14.0;
+    Font_Style = 0;
+    Font_Color = 0, 0, 0;
+    Font_Background_Color = 0, 0, 0;
+    Window_Font_Name = "Dialog";
+    Window_Font_Char_Set = 0;
+    Window_Font_Size = 14.0;
+    Window_Font_Style = 0;
+    Window_Font_Color = 0, 0, 0;
+    Window_Font_Background_Color = 0, 0, 0;
+}
+
+
+//-------------------------------------------------------
+// Network Information Definition Division
+//-------------------------------------------------------
+Network_Info {
+    Global_Space_Area = 0, 0, 100, 100;
+    Local_Space_Info {
+    }
+}
+
+
+//-------------------------------------------------------
+// Window Location Definition Division
+//-------------------------------------------------------
+Window_Rectangle {
+    Window_Name = Main_Window, 0, 0, 1440, 900;
+    Window_Name = Output_Setting_Window, 495, 275, 480, 350;
+    Window_Name = Artisoc_Help_Window, 10, 10, 400, 300;
+}
+
+
+//-------------------------------------------------------
+// Help Favorite Division
+//-------------------------------------------------------
+Help_Favorite {
+}
+
+
+//-------------------------------------------------------
+// Model Description Division
+//-------------------------------------------------------
+Model_Description {
+    Universe {
+        Function Univ_Init {
+        }
+        Function Univ_Step_Begin {
+        }
+        Function Univ_Step_End {
+        }
+        Function Univ_Finish {
+        }
+        Function getCategoryThreshold {
+        }
+    }
+    Space Universe.Internet {
+    }
+    Agent Universe.Internet.user {
+        Function Agt_Init {
+        }
+        Function Agt_Step {
+        }
+    }
+    Agent Universe.Internet.follower {
+        Variable W_g = "weight of if an agent like the genre "g"";
+        Variable wGreed = "満足度入手回数に応じた重み\nm2";
+        Variable wCriticism = "批評値取得回数に応じた重み\nm3";
+        Variable viewStep = "viewStep(a, 0)鑑賞回数\nviewStep(a, 1)観賞後の経過時間";
+        Variable infoThreshold = "情報量の鑑賞閾値";
+        Variable viewNum = "映画の鑑賞回数";
+        Variable Utility = "鑑賞効用値";
+        Function Agt_Init {
+        }
+        Function Agt_Step {
+        }
+    }
+    Space Universe.Social {
+    }
+    Agent Universe.Social.consumer {
+        Variable W_g = "weight of if an agent like the genre "g"";
+        Variable wGreed = "満足度入手回数に応じた重み\nm2";
+        Variable wCriticism = "批評値取得回数に応じた重みm3";
+        Variable viewStep = "viewStep(0, a)鑑賞回数(フラグ)\nviewStep(1, a)観賞後の経過時間";
+        Variable infoThreshold = "情報量の鑑賞閾値";
+        Variable viewNum = "映画の鑑賞回数";
+        Variable Utility = "鑑賞効用値";
+        Function Agt_Init {
+        }
+        Function Agt_Step {
+        }
+    }
+    Agent Universe.movie {
+        Function Agt_Init {
+        }
+        Function Agt_Step {
+        }
+        Function Ad_rate {
+        }
+    }
+}
