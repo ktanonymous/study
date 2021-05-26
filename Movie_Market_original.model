@@ -100,7 +100,7 @@ Initial_Value {
     UNIVERSE.CONSUMER_RATIO = 1(0.6);
     UNIVERSE.NUM_AGENT = 1(1000);
     UNIVERSE.GENRERATIO = 1(0.2, 0.27, 0.43, 0.45, 0.48, 0.6, 0.61, 0.69);
-    UNIVERSE.SERIES = 1(1);
+    UNIVERSE.SERIES = 1(10);
     UNIVERSE.PERIOD = 1(400);
 }
 
@@ -109,297 +109,281 @@ Initial_Value {
 // Agent Rule
 //-------------------------------------------------------
 #begin_rule UNIVERSE
-/*
-情報量が閾値を超えた場合、
-効用値が閾値を超えた場合に、
-エージェントは映画を鑑賞する
-<変更点>
+/* ver2.1
 • ジャンル選好度 W_g について、「普通」の選好度 0.1 ~ 0.9 で与える
 • 2回目以降の満足度/批評値の受信重みを2割ずつ減衰するようにした
+• 各種操作を関数化
 • 
 */
 Univ_Init{
-Dim num_netuser As Integer, num_netfollower As Integer, num_consumer As Integer
-Dim netuser As Agtset, netfollower As Agtset, consumer As Agtset
-Dim one As Agt
-Dim i As Integer, j As Integer, mode As Integer
-Dim min As Double, criteria As Double
-
-//ExitSimulationMsgLn("!! 連続実行用に書き換えるまでは安易に実行しない !!")
-
-// 各エージェントタイプの割合の合計が1じゃない場合はシミュレーションを中止
-If Universe.user_ratio + Universe.follower_ratio + Universe.consumer_ratio != 1 Then
-	ExitSimulationMsgLn("Sum of ratio is not 1")
-End If
-
-// シミュレーション開始時間を記録する
-If GetCountSimulationNumber() == 1 Then
-	PrintLn("") // 改行
-	PrintLn("Start Time : " & TimeToStr(GetRealTime(), "HH時mm分ss秒"))
-End if
-
-// 出力先のディレクトリ名を宣言
-Universe.dir = "resultOrigin"
-
-// 乱数シードの指定
-SetRandomSeed(88)
-
-
-//映画を生成
-OpenFileCSV("data/Genre_Data.csv", 1, 1) // 映画のジャンル情報を持つファイル
-OpenFileCSV("data/review_Data.csv", 2, 1) // 映画の評価情報を持つファイル
-OpenFileCSV("data/Ad_Data.csv", 3, 1) // 映画の宣伝費情報を持つファイル
-OpenFileCSV("data/Date_Data.csv", 4, 1) // 映画の公開日情報を持つファイル
-min = CInt(ReadFileCSV(3)) // 宣伝費の最小値を取得する
-criteria = CInt(ReadFileCSV(3)) // 宣伝費を10段階評価するための基準値
-For i=0 to 17
-	one = CreateAgt(Universe.movie) // 映画を生成
-	one.genre = CInt(ReadFileCSV(1)) // ジャンルを取得
-	one.review = CDbl(ReadFileCSV(2)) // 評価値を取得
-	one.alpha = CInt(ReadFileCSV(3)) // 宣伝費を取得
-	one.startDate = CInt(ReadFileCSV(4)) // 公開日を取得
-	one.IDNo = i // 映画の番号を付与
-	For j=1 to 9 // 宣伝ウェイトを計算
-		If one.alpha < min+criteria*j Then
-			one.alpha = j
-			Break
+	Dim num_netuser As Integer, num_netfollower As Integer, num_consumer As Integer
+	Dim netuser As Agtset, netfollower As Agtset, consumer As Agtset, movies As Agtset
+	Dim one As Agt
+	Dim i As Integer, j As Integer, mode As Integer
+	Dim min As Double, criteria As Double
+	
+	//ExitSimulationMsgLn("!! 連続実行用に書き換えるまでは安易に実行しない !!")
+	
+	// 各エージェントタイプの割合の合計が1じゃない場合はシミュレーションを中止
+	If Universe.user_ratio + Universe.follower_ratio + Universe.consumer_ratio != 1 Then
+		ExitSimulationMsgLn("Sum of ratio is not 1")
+	End If
+	
+	// シミュレーション開始時間を記録する
+	If GetCountSimulationNumber() == 1 Then
+		PrintLn("") // 改行
+		PrintLn("Start Time : " & TimeToStr(GetRealTime(), "HH時mm分ss秒"))
+	End if
+	
+	// 出力先のディレクトリ名を宣言
+	Universe.dir = "resultOrigin"
+	
+//	// 乱数シードの指定
+//	SetRandomSeed(88)
+	
+	
+	//映画を生成
+	OpenFileCSV("data/Genre_Data.csv", 1, 1) // 映画のジャンル情報を持つファイル
+	OpenFileCSV("data/review_Data.csv", 2, 1) // 映画の評価情報を持つファイル
+	OpenFileCSV("data/Ad_Data.csv", 3, 1) // 映画の宣伝費情報を持つファイル
+	OpenFileCSV("data/Date_Data.csv", 4, 1) // 映画の公開日情報を持つファイル
+	min = CInt(ReadFileCSV(3)) // 宣伝費の最小値を取得する
+	criteria = CInt(ReadFileCSV(3)) // 宣伝費を10段階評価するための基準値
+	For i=0 to 17
+		one = CreateAgt(Universe.movie) // 映画を生成
+		one.genre = CInt(ReadFileCSV(1)) // ジャンルを取得
+		one.review = CDbl(ReadFileCSV(2)) // 評価値を取得
+		one.alpha = CInt(ReadFileCSV(3)) // 宣伝費を取得
+		one.startDate = CInt(ReadFileCSV(4)) // 公開日を取得
+		one.IDNo = i // 映画の番号を付与
+		For j=1 to 9 // 宣伝ウェイトを計算
+			If one.alpha < min+criteria*j Then
+				one.alpha = j
+				Break
+			End if
+		Next j
+		If j == 10 Then
+			one.alpha = 10
 		End if
-	Next j
-	If j == 10 Then
-		one.alpha = 10
+		one.promProb = 0.08 * one.alpha // 宣伝接触確率を計算(n_P=0.08)
+		one.greed = (one.review^3) / (one.alpha^2) // 満足度を計算(m_G=3, n_G=2)
+		If one.review >= 7.4 Then // 批評値を計算(v=7.4)
+			one.criticism = one.review
+		else
+			one.criticism = -(10-one.review) * 3 // beta=3
+		End if
+	//	println(i & " : " & _.alpha) // デバッグ用
+	Next i
+	For i=1 to 4 // ファイルを閉じる
+		CloseFileCSV(i)
+	Next i
+	
+	
+	MakeAgtset(movies, Universe.movie)
+	// ネットユーザーエージェントを生成
+	num_netuser = Round(Universe.num_agent * Universe.user_ratio)
+	For i=0 to num_netuser-1
+		one = CreateAgt(Universe.Internet.user)
+		one.IDNo = i // エージェントに識別番号を付与する
+		one.transmission_range = 10  // userの情報伝達範囲は周囲10近傍(21*21セルの正方形内)
+		// 作品ごとの鑑賞情報を初期化する
+		For Each movie in movies
+			one.viewStep(0, movie.IDNo) = 0  // 鑑賞回数の初期化
+			one.viewStep(1, movie.IDNo) = 0  // 観賞後の経過時間の初期化
+		Next movie
+	Next i
+	MakeAgtset(netuser, Universe.Internet.user)
+	RandomPutAgtSetCell(netuser, True)
+	
+	
+	// 消費者を生成
+	// ネットフォロワーエージェントを生成
+	num_netfollower = Round(Universe.num_agent * Universe.follower_ratio)
+	For i=0 to num_netfollower-1
+		one = CreateAgt(Universe.Internet.follower)
+		one.IDNo = i // エージェントに識別番号を付与する
+		getParams(one, movies, 8)
+	Next i
+	MakeAgtset(netfollower, Universe.Internet.follower)
+	RandomPutAgtSetCell(netfollower, True)
+	
+	// 一般消費者エージェントを生成
+	num_consumer = Round(Universe.num_agent * Universe.consumer_ratio)
+	For i=0 to num_consumer-1
+		one = CreateAgt(Universe.Social.consumer)
+		one.IDNo = i // エージェントに識別番号を付与する
+		getParams(one, movies, 8)
+	Next i
+	MakeAgtsetSpace(consumer, Universe.Social)
+	RandomPutAgtSetCell(consumer, True)
+	
+	
+	// 出力用ファイルの準備
+	If GetCountSimulationNumber()==1 Then
+		// 1回目のシミュレーションの開始時に出力ファイルを初期化
+		mode = 2 // write mode
+		// シミュレーションの環境設定を書き込む
+		writeEnvInfo()
+	Else 
+		// 2回目以降のシミュレーションでは出力を追加していく
+		mode = 3 // append mode
 	End if
-	one.promProb = 0.08 * one.alpha // 宣伝接触確率を計算(n_P=0.08)
-	one.greed = (one.review^3) / (one.alpha^2) // 満足度を計算(m_G=3, n_G=2)
-	If one.review >= 7.4 Then // 批評値を計算(v=7.4)
-		one.criticism = one.review
-	else
-		one.criticism = -(10-one.review) * 3 // beta=3
-	End if
-//	println(i & " : " & _.alpha) // デバッグ用
-Next i
-For i=1 to 4 // ファイルを閉じる
-	CloseFileCSV(i)
-Next i
-
-
-// ネットユーザーエージェントを生成
-num_netuser = Round(Universe.num_agent * Universe.user_ratio)
-For i=0 to num_netuser-1
-	one = CreateAgt(Universe.Internet.user)
-	one.IDNo = i // エージェントに識別番号を付与する
-Next i
-MakeAgtset(netuser, Universe.Internet.user)
-RandomPutAgtSetCell(netuser, True)
-
-
-// ネットフォロワーエージェントを生成
-num_netfollower = Round(Universe.num_agent * Universe.follower_ratio)
-For i=0 to num_netfollower-1
-	one = CreateAgt(Universe.Internet.follower)
-	one.IDNo = i // エージェントに識別番号を付与する
-Next i
-MakeAgtset(netfollower, Universe.Internet.follower)
-RandomPutAgtSetCell(netfollower, True)
-
-
-// 一般消費者エージェントを生成
-num_consumer = Round(Universe.num_agent * Universe.consumer_ratio)
-For i=0 to num_consumer-1
-	one = CreateAgt(Universe.Social.consumer)
-	one.IDNo = i // エージェントに識別番号を付与する
-Next i
-MakeAgtsetSpace(consumer, Universe.Social)
-RandomPutAgtSetCell(consumer, True)
-
-
-// 出力用ファイルの準備
-If GetCountSimulationNumber()==1 Then
-	// 1回目のシミュレーションの開始時に出力ファイルを初期化
-	mode = 2 // write mode
-	// シミュレーションの環境設定を書き込む
-	writeEnvInfo()
-Else 
-	// 2回目以降のシミュレーションでは出力を追加していく
-	mode = 3 // append mode
-End if
-OpenFileCSV(Universe.dir&"/Audience_Data.csv", 1, mode) // 映画動員数確認用のファイル
-OpenFileCSV(Universe.dir&"/follower_Info.csv", 2, mode) // ネットフォロワーの映画情報量の確認用のファイル
-OpenFileCSV(Universe.dir&"/follower_View.csv", 3, mode) // ネットフォロワーの鑑賞状況の確認用のファイル
-OpenFileCSV(Universe.dir&"/follower_Utility.csv", 4, mode) // ネットフォロワーの映画効用値の確認用のファイル
-OpenFileCSV(Universe.dir&"/consumer_Info.csv", 5, mode) // 一般消費者の映画情報量の確認用のファイル
-OpenFileCSV(Universe.dir&"/consumer_View.csv", 6, mode) // 一般消費者の鑑賞状況の確認用のファイル
-OpenFileCSV(Universe.dir&"/consumer_Utility.csv", 7, mode) // 一般消費者の映画効用値の確認用のファイル
-WriteFileCSV(1, "Step", True)
-WriteFileCSV(2, "Step", True)
-WriteFileCSV(3, "Step", True)
-WriteFileCSV(4, "movieID", True)
-WriteFileCSV(5, "Step", True)
-WriteFileCSV(6, "Step", True)
-WriteFileCSV(7, "movieID", True)
-For i=1 to 7
-	CloseFileCSV(i)
-Next i
+	OpenFileCSV(Universe.dir&"/Audience_Data.csv", 1, mode) // 映画動員数確認用のファイル
+	OpenFileCSV(Universe.dir&"/follower_Info.csv", 2, mode) // ネットフォロワーの映画情報量の確認用のファイル
+	OpenFileCSV(Universe.dir&"/follower_View.csv", 3, mode) // ネットフォロワーの鑑賞状況の確認用のファイル
+	OpenFileCSV(Universe.dir&"/follower_Utility.csv", 4, mode) // ネットフォロワーの映画効用値の確認用のファイル
+	OpenFileCSV(Universe.dir&"/consumer_Info.csv", 5, mode) // 一般消費者の映画情報量の確認用のファイル
+	OpenFileCSV(Universe.dir&"/consumer_View.csv", 6, mode) // 一般消費者の鑑賞状況の確認用のファイル
+	OpenFileCSV(Universe.dir&"/consumer_Utility.csv", 7, mode) // 一般消費者の映画効用値の確認用のファイル
+	WriteFileCSV(1, "Step", True)
+	WriteFileCSV(2, "Step", True)
+	WriteFileCSV(3, "Step", True)
+	WriteFileCSV(4, "movieID", True)
+	WriteFileCSV(5, "Step", True)
+	WriteFileCSV(6, "Step", True)
+	WriteFileCSV(7, "movieID", True)
+	For i=1 to 7
+		CloseFileCSV(i)
+	Next i
 }
 
 Univ_Step_Begin{
-Dim agents As Agtset, movies As Agtset
-Dim one As Agt, movie As Agt
-Dim num_movie As Integer, flg As Integer
-
-MakeAgtSet(movies, Universe.movie)
-num_movie = CountAgtSet(movies)
-MakeAgtSet(agents, Universe.Internet.user)
-For Each one in agents
-	For Each movie in movies
-		// 鑑賞済みの作品の経過日数を更新する
-		If one.viewStep(0, movie.IDNo) >= 1 Then
-			one.viewStep(1, movie.IDNo) = one.viewStep(1, movie.IDNo) + 1
-		End if
-	Next movie
-Next one
-MakeAgtSet(agents, Universe.Internet.follower)
-For Each one in agents
-	// 「未鑑賞で情報保有量が最大の作品」が鑑賞済みである状況を避ける
-	flg = 0
-	Do While one.viewStep(0, one.max_info_movie) >= 1
-		one.max_info_movie = (one.max_info_movie + 1) Mod num_movie
-		flg = flg + 1
-		If flg == num_movie - 1 Then
-			// 全ての作品を鑑賞している場合は無視して良い
-			break
-		End if
-	Loop
-	For Each movie in movies
-		// 鑑賞済みの作品の経過日数を更新する
-		If one.viewStep(0, movie.IDNo) >= 1 Then
-			one.viewStep(1, movie.IDNo) = one.viewStep(1, movie.IDNo) + 1
-		Else
-			If one.Info(one.max_info_movie) < one.Info(movie.IDNo) Then
-				// 作品が未鑑賞かつ情報保有量がより多い場合に、「未鑑賞で情報保有量が最大の作品」を更新する
-				one.max_info_movie = movie.IDNo
+	Dim agents As Agtset, agents2 As Agtset, movies As Agtset
+	Dim one As Agt, movie As Agt
+	Dim num_movie As Integer, flg As Integer
+	
+	MakeAgtSet(movies, Universe.movie)
+	num_movie = CountAgtSet(movies)
+	MakeAgtSet(agents, Universe.Internet.user)
+	For Each one in agents
+		For Each movie in movies
+			// userの鑑賞済みの作品の経過日数を更新する
+			If one.viewStep(0, movie.IDNo) >= 1 Then
+				one.viewStep(1, movie.IDNo) = one.viewStep(1, movie.IDNo) + 1
 			End if
-		End if
-	Next movie
-Next one
-MakeAgtSetSpace(agents, Universe.Social)
-For Each one in agents
-	// 「未鑑賞で情報保有量が最大の作品」が鑑賞済みである状況を避ける
-	flg = 0
-	Do While one.viewStep(0, one.max_info_movie) >= 1
-		one.max_info_movie = (one.max_info_movie + 1) Mod num_movie
-		flg = flg + 1
-		If flg == num_movie - 1 Then
-			// 全ての作品を鑑賞している場合は無視して良い
-			break
-		End if
-	Loop
-	For Each movie in movies
-		// 鑑賞済みの作品の経過日数を更新する
-		If one.viewStep(0, movie.IDNo) >= 1 Then
-			one.viewStep(1, movie.IDNo) = one.viewStep(1, movie.IDNo) + 1
-		Else
-			If one.Info(one.max_info_movie) < one.Info(movie.IDNo) Then
-				// 作品が未鑑賞かつ情報保有量がより多い場合に、「未鑑賞で情報保有量が最大の作品」を更新する
-				one.max_info_movie = movie.IDNo
+		Next movie
+	Next one
+	MakeAgtSet(agents, Universe.Internet.follower)
+	MakeAgtSetSpace(agents2, Universe.Social)
+	JoinAgtSet(agents, agents2)
+	For Each one in agents
+		// 「未鑑賞で情報保有量が最大の作品」が鑑賞済みである状況を避ける
+		flg = 0
+		Do While one.viewStep(0, one.max_info_movie) >= 1
+			one.max_info_movie = (one.max_info_movie + 1) Mod num_movie
+			flg = flg + 1
+			If flg == num_movie - 1 Then
+				// 全ての作品を鑑賞している場合は無視して良い
+				break
 			End if
-		End if
+		Loop
+		For Each movie in movies
+			// 鑑賞済みの作品の経過日数を更新する
+			If one.viewStep(0, movie.IDNo) >= 1 Then
+				one.viewStep(1, movie.IDNo) = one.viewStep(1, movie.IDNo) + 1
+			Else
+				If one.Info(one.max_info_movie) < one.Info(movie.IDNo) Then
+					// 作品が未鑑賞かつ情報保有量がより多い場合に、「未鑑賞で情報保有量が最大の作品」を更新する
+					one.max_info_movie = movie.IDNo
+				End if
+			End if
+		Next movie
+	Next one
+	
+	// 動員数の初期化
+	For Each movie in movies
+		movie.numAudience = 0
 	Next movie
-Next one
-
-// 動員数の初期化
-For Each movie in movies
-	movie.numAudience = 0
-Next movie
 }
 
 Univ_Step_End{
-Dim movies As Agtset, followers As Agtset, consumers As Agtset
-Dim movie As Agt, follower As Agt, consumer As Agt
-Dim nowStep As Integer, i As integer
-
-nowStep = GetCountStep()
-// 100ステップ毎に現在のステップを確認
-//If nowStep mod 100 == 0 Then
-//	PrintLn("Step : " & nowStep)
-//End if
-
-// ネットフォロワーについて、サイズ( Step, NumMovie*NumAgent )の表を作成
-MakeAgtSet(movies, Universe.movie)
-MakeAgtSet(followers, Universe.Internet.follower)
-MakeAgtSet(consumers, Universe.Social.consumer)
-SortAgtSet(movies, "IDNo", True)
-SortAgtSet(followers, "IDNo", True)
-SortAgtSet(consumers, "IDNo", True)
-OpenFileCSV(Universe.dir&"/Audience_Data.csv", 1, 3) // 動員数を記録
-OpenFileCSV(Universe.dir&"/follower_Info.csv", 2, 3) // 各エージェントの保有情報量を記録
-OpenFileCSV(Universe.dir&"/follower_View.csv", 3, 3) // 1 エージェントの鑑賞状況を記録
-OpenFileCSV(Universe.dir&"/consumer_Info.csv", 4, 3)
-OpenFileCSV(Universe.dir&"/consumer_View.csv", 5, 3)
-For i=1 to 5
-	WriteFileCSV(i, nowStep, False) // 1列目にステップ数を記録
-Next i
-For Each movie in movies
-	WriteFileCSV(1, movie.numAudience, False)
-	universe.test(movie.IDNo) = movie.numAudience // 作品毎の動員数を記録
-	For Each follower in followers
-		WriteFileCSV(2, follower.Info(movie.IDNo), False) // 作品毎に、全フォロワーエージェントの情報保有量を記録していく
-		WriteFileCSV(3, follower.viewStep(0, movie.IDNo), False) // 作品毎に、全フォロワーエージェントの鑑賞回数(フラグ)を記録していく
-	Next follower
-	For Each consumer in consumers
-		WriteFileCSV(4, consumer.Info(movie.IDNo), False)
-		WriteFileCSV(5, consumer.viewStep(0, movie.IDNo), False)
-	Next consumer
-Next movie
-For i=1 to 5
-	WriteFileCSV(i, "", True) // 改行する
-	CloseFileCSV(i)
-Next i
-
-// Universe.period (400日)(ステップ)で終了
-If nowStep == Universe.period Then
-	ExitSimulation()
-//	ExitSimulationMsgLn(CStr(Universe.period) & " steps passed")
-End if
+	Dim movies As Agtset, followers As Agtset, consumers As Agtset
+	Dim movie As Agt, follower As Agt, consumer As Agt
+	Dim nowStep As Integer, i As integer
+	
+	nowStep = GetCountStep()
+	// 100ステップ毎に現在のステップを確認
+	//If nowStep mod 100 == 0 Then
+	//	PrintLn("Step : " & nowStep)
+	//End if
+	
+	// ネットフォロワーについて、サイズ( Step, NumMovie*NumAgent )の表を作成
+	MakeAgtSet(movies, Universe.movie)
+	MakeAgtSet(followers, Universe.Internet.follower)
+	MakeAgtSet(consumers, Universe.Social.consumer)
+	SortAgtSet(movies, "IDNo", True)
+	SortAgtSet(followers, "IDNo", True)
+	SortAgtSet(consumers, "IDNo", True)
+	OpenFileCSV(Universe.dir&"/Audience_Data.csv", 1, 3) // 動員数を記録
+	OpenFileCSV(Universe.dir&"/follower_Info.csv", 2, 3) // 各エージェントの保有情報量を記録
+	OpenFileCSV(Universe.dir&"/follower_View.csv", 3, 3) // 1 エージェントの鑑賞状況を記録
+	OpenFileCSV(Universe.dir&"/consumer_Info.csv", 4, 3)
+	OpenFileCSV(Universe.dir&"/consumer_View.csv", 5, 3)
+	For i=1 to 5
+		WriteFileCSV(i, nowStep, False) // 1列目にステップ数を記録
+	Next i
+	For Each movie in movies
+		WriteFileCSV(1, movie.numAudience, False)
+		universe.test(movie.IDNo) = movie.numAudience // 作品毎の動員数を記録
+		For Each follower in followers
+			WriteFileCSV(2, follower.Info(movie.IDNo), False) // 作品毎に、全フォロワーエージェントの情報保有量を記録していく
+			WriteFileCSV(3, follower.viewStep(0, movie.IDNo), False) // 作品毎に、全フォロワーエージェントの鑑賞回数(フラグ)を記録していく
+		Next follower
+		For Each consumer in consumers
+			WriteFileCSV(4, consumer.Info(movie.IDNo), False)
+			WriteFileCSV(5, consumer.viewStep(0, movie.IDNo), False)
+		Next consumer
+	Next movie
+	For i=1 to 5
+		WriteFileCSV(i, "", True) // 改行する
+		CloseFileCSV(i)
+	Next i
+	
+	// Universe.period (400日)(ステップ)で終了
+	If nowStep == Universe.period Then
+		ExitSimulation()
+	//	ExitSimulationMsgLn(CStr(Universe.period) & " steps passed")
+	End if
 }
 
 Univ_Finish{
-Dim followers As Agtset, consumers As Agtset, movies As Agtset
-Dim follower As Agt, consumer As Agt, movie As Agt
-Dim num_sim As Integer
-
-MakeAgtset(followers, Universe.Internet.follower)
-MakeAgtset(consumers, Universe.Social.consumer)
-MakeAgtset(movies, Universe.movie)
-SortAgtSet(followers, "IDNo", True)
-SortAgtSet(consumers, "IDNo", True)
-SortAgtSet(movies, "IDNo", True)
-OpenFileCSV(Universe.dir&"/follower_Utility.csv", 1, 3)
-OpenFileCSV(Universe.dir&"/consumer_Utility.csv", 2, 3)
-For Each movie in movies
-	WriteFileCSV(1, movie.IDNo, False)
-	WriteFileCSV(2, movie.IDNo, False)
-	For Each follower in followers
-		WriteFileCSV(1, follower.Utility(movie.IDNo), False)
-	Next follower
-	For Each consumer in consumers
-		WriteFileCSV(2, consumer.Utility(movie.IDNo), False)
-	Next consumer
-	WriteFileCSV(1, "", True)
-	WriteFileCSV(2, "", True)
-Next movie
-CloseFileCSV(1)
-CloseFileCSV(2)
-
-num_sim = GetCountSimulationNumber()
-PrintLn("Simulation Number : " & num_sim)
-If num_sim == Universe.series Then
-	// シミュレーション終了時に、開始および終了時間を出力する
-	PrintLn("End Time : " & TimeToStr(GetRealTime(), "HH時mm分ss秒"))
-	PrintLn("Net User : " & CountAgt(Universe.Internet.user))
-	PrintLn("Net Follower : " & CountAgt(Universe.Internet.follower))
-	PrintLn("Consumer : " & CountAgt(Universe.Social.consumer))
-	PrintLn("") // 改行
-End if
+	Dim followers As Agtset, consumers As Agtset, movies As Agtset
+	Dim follower As Agt, consumer As Agt, movie As Agt
+	Dim num_sim As Integer
+	
+	MakeAgtset(followers, Universe.Internet.follower)
+	MakeAgtset(consumers, Universe.Social.consumer)
+	MakeAgtset(movies, Universe.movie)
+	SortAgtSet(followers, "IDNo", True)
+	SortAgtSet(consumers, "IDNo", True)
+	SortAgtSet(movies, "IDNo", True)
+	OpenFileCSV(Universe.dir&"/follower_Utility.csv", 1, 3)
+	OpenFileCSV(Universe.dir&"/consumer_Utility.csv", 2, 3)
+	For Each movie in movies
+		WriteFileCSV(1, movie.IDNo, False)
+		WriteFileCSV(2, movie.IDNo, False)
+		For Each follower in followers
+			WriteFileCSV(1, follower.Utility(movie.IDNo), False)
+		Next follower
+		For Each consumer in consumers
+			WriteFileCSV(2, consumer.Utility(movie.IDNo), False)
+		Next consumer
+		WriteFileCSV(1, "", True)
+		WriteFileCSV(2, "", True)
+	Next movie
+	CloseFileCSV(1)
+	CloseFileCSV(2)
+	
+	num_sim = GetCountSimulationNumber()
+	PrintLn("Simulation Number : " & num_sim)
+	If num_sim == Universe.series Then
+		// シミュレーション終了時に、開始および終了時間を出力する
+		PrintLn("End Time : " & TimeToStr(GetRealTime(), "HH時mm分ss秒"))
+		PrintLn("Net User : " & CountAgt(Universe.Internet.user))
+		PrintLn("Net Follower : " & CountAgt(Universe.Internet.follower))
+		PrintLn("Consumer : " & CountAgt(Universe.Social.consumer))
+		PrintLn("") // 改行
+	End if
 }
 
 
@@ -409,34 +393,210 @@ End if
 
 // シミュレーションの環境情報を記録する
 Sub writeEnvInfo(){
-OpenFileCSV(Universe.dir&"/Environment.csv", 1, 2)
-WriteFileCSV(1, "series", False)
-WriteFileCSV(1, Universe.series, True)
-WriteFileCSV(1, "period", False)
-WriteFileCSV(1, Universe.period, True)
-WriteFileCSV(1, "Net-User", False)
-WriteFileCSV(1, CountAgt(Universe.Internet.user), True)
-WriteFileCSV(1, "Net-Follower", False)
-WriteFileCSV(1, CountAgt(Universe.Internet.follower), True)
-WriteFileCSV(1, "Consumer", False)
-WriteFileCSV(1, CountAgt(Universe.Social.consumer), True)
-WriteFileCSV(1, "Movie", False)
-WriteFileCSV(1, CountAgt(Universe.movie), True)
-CloseFileCSV(1)
+	OpenFileCSV(Universe.dir&"/Environment.csv", 1, 2)
+	WriteFileCSV(1, "series", False)
+	WriteFileCSV(1, Universe.series, True)
+	WriteFileCSV(1, "period", False)
+	WriteFileCSV(1, Universe.period, True)
+	WriteFileCSV(1, "Net-User", False)
+	WriteFileCSV(1, CountAgt(Universe.Internet.user), True)
+	WriteFileCSV(1, "Net-Follower", False)
+	WriteFileCSV(1, CountAgt(Universe.Internet.follower), True)
+	WriteFileCSV(1, "Consumer", False)
+	WriteFileCSV(1, CountAgt(Universe.Social.consumer), True)
+	WriteFileCSV(1, "Movie", False)
+	WriteFileCSV(1, CountAgt(Universe.movie), True)
+	CloseFileCSV(1)
+}
+
+// 消費者の作品ごとのパラメータを取得する
+Sub getParams(self As Agt, movies As Agtset, num_genre As Integer){
+	Dim movie As Agt
+
+	For Each movie in movies
+		// 鑑賞効用値の決定(r_U=0.66, n_U=2)
+		self.Utility(movie.IDNo) = 0.66 * (movie.review^2) * self.W_g(movie.genre-1)
+		// 初期化
+		self.Info(movie.IDNo) = 0  // 作品情報量の初期化
+		self.wGreed(movie.IDNo) = 1  // 満足度受信重みの初期化
+		self.wCriticism(movie.IDNo) = 1  // 批評値受信重みの初期化
+		self.viewStep(0, movie.IDNo) = 0  // 鑑賞回数の初期化
+		self.viewStep(1, movie.IDNo) = 0  // 観賞後の経過時間の初期化
+	Next movie
+	// 消費者(follower, consumer)の情報伝達範囲は周囲1近傍(3*3セルの正方形内)
+	self.transmission_range = 1
+	// ジャンルごとの選好度を決定する
+	getGenreWeight(self, num_genre)
+	// 商品の採用時期による消費者集団の分類に応じて閾値を決定(最終的な鑑賞閾値決定に使用)
+	self.categoryThreshold = getCategoryThreshold(Rnd())
+	// 消費者の被影響性を決定
+	self.effectiveness = Rnd() + 0.7
+	// 映画鑑賞回数の初期化
+	self.viewNum = 0
+	// 未鑑賞かつ情報量最大の作品IDを初期化
+	self.max_info_movie = 0
 }
 
 // 消費者カテゴリーを取得する
-Function getCategoryThreshold(param As Double) As Double {
+Function getCategoryThreshold(rand As Double) As Double {
+	If rand < 0.16 Then // 16% が初期採用消費者
+		return Rnd() * 50 + 940
+	elseif rand < 0.50 Then // 34% が前期採用消費者
+		return Rnd() * 50 + 990
+	elseif rand < 0.84 Then // 34% が後期採用消費者
+		return Rnd() * 100 + 1500
+	else // 16% が採用遅滞消費者
+		return Rnd() * 100 + 2100
+	End if
+}
 
-If param < 0.16 Then // 16% が初期採用消費者
-	return Rnd() * 50 + 940
-elseif param < 0.50 Then // 34% が前期採用消費者
-	return Rnd() * 50 + 990
-elseif param < 0.84 Then // 34% が後期採用消費者
-	return Rnd() * 100 + 1500
-else // 16% が採用遅滞消費者
-	return Rnd() * 100 + 2100
-End if
+// ジャンルごとの選好度を取得する
+Sub getGenreWeight(self As Agt, num_genre As Integer){
+	Dim i As Integer
+	Dim rand As Double
+
+	For i=0 to num_genre-1
+		rand = Rnd()
+		If rand < Universe.genreRatio(i) Then  // ジャンル選好割合に応じて重み付けを行う
+			self.W_g(i) = 1
+		Elseif rand > 0.9 Then  // 10%がジャンルを嫌う
+			self.W_g(i) = 0
+		Else  // ジャンルの選好度が「普通」の場合は区間(0.1, 0.9)から選ばれる
+			self.W_g(i) = Rnd() * 0.8 + 0.1
+		End if
+	Next i
+}
+
+// ネットユーザーから受け取る作品の情報量を取得する
+Function getInformationFromVirtual(
+self As Agt, movie As Agt,
+info As Double, rand As Double,
+users As Agtset
+) As Double {
+	Dim one As Agt
+
+	For Each one in users
+		// 満足度を受け取るかどうかの判定
+		If rand < (0.013*movie.review^2)^one.viewStep(1, movie.IDNo) Then
+			info = info + movie.greed * self.wGreed(movie.IDNo)
+			// 次に受け取る情報の重みは減衰する
+			self.wGreed(movie.IDNo) = self.wGreed(movie.IDNo) * 0.5
+		End if
+		// 批評値を受け取るかどうかの判定
+		If rand < 0.374 Then
+			info = info + movie.criticism * self.wCriticism(movie.IDNo)
+			// 次に受け取る情報の重みは減衰する
+			self.wCriticism(movie.IDNo) = self.wCriticism(movie.IDNo) * 0.5
+		End if
+	Next one
+
+	return info
+}
+
+// ネットフォロワー及び一般消費者から受け取る作品の情報量を取得する
+Function getInformationFromReal(
+self As Agt, movie As Agt,
+info As Double, rand As Double,
+neighbors As Agtset
+) As Double {
+	Dim one As Agt
+
+	// 周囲の各エージェントから受信する情報量を累積させる
+	For Each one in neighbors
+		If one.viewStep(0, movie.IDNo) == 0 Then
+			// 周囲の対象エージェントが作品を未鑑賞の場合、そのエージェントの保有最大情報量を受信する
+			If movie.IDNo == one.max_info_movie Then
+				//  鑑賞済みのエージェントよりも影響が小さい(らしい)ので実際の被影響性以上に減衰させる
+				info = info + one.Info(movie.IDNo) * 0.5
+			End if
+		Else
+			// 周囲の対象エージェントが作品を鑑賞済みの場合、満足度と批評値を受信する
+			// 満足度を受け取るかどうかを判定
+			If rand < (0.013*movie.review^2)^one.viewStep(1, movie.IDNo) Then
+				info = info + movie.greed * self.wGreed(movie.IDNo)
+				// 次に受け取る情報の重みは減衰する
+				self.wGreed(movie.IDNo) = self.wGreed(movie.IDNo) * 0.5
+			End if
+			// 批評値を受け取るかどうかを判定
+			If rand < 0.374 Then
+				info = info + movie.criticism * self.wCriticism(movie.IDNo)
+				// 次に受け取る情報の重みは減衰する
+				self.wCriticism(movie.IDNo) = self.wCriticism(movie.IDNo) * 0.5
+			End if
+		End if
+	Next one
+
+	return info
+}
+
+// agt_stepを関数化したもの
+Sub functionAgtStep(
+self As Agt,
+movies As Agtset, neighbors As Agtset, followers As Agtset,
+date As Integer,
+is_follower As Boolean
+){
+	Dim movie As Agt, one As Agt
+	Dim info As Double, rand As Double
+	
+	// 鑑賞閾値は映画の鑑賞回数に応じて減衰する(sigma=0.99)
+	self.infoThreshold = self.categoryThreshold / (0.99^self.viewNum)
+	
+	// 鑑賞意思決定
+	For Each movie in movies
+	
+		If (date < movie.startDate-30) Or (self.viewStep(0, movie.IDNo)>=1) Then	
+			// 公開の30日以上前は何も行わない
+			// 鑑賞済みの作品についても情報の受信は行わない
+		else
+			info = 0 // 情報受信量の初期化
+			rand = Rnd() // その日の乱数を確定する
+			// 宣伝に接触するかどうかを判定
+			If rand < movie.promProb Then
+				info = info + movie.promotion // 宣伝情報量を追加
+			End if
+			// 周囲のエージェントから、知覚している作品の情報を受信する
+			If date > movie.startDate Then // 実評価値は公開以降のみ受け取り可能？
+				If self.Info(movie.IDNo) != 0 Then // 知覚していない作品の情報は受信できない
+					If is_follower Then
+						// ネットフォロワーの場合、ネットユーザーから情報を受信するかどうかの判定
+						If CountAgtSet(neighbors) > 0 Then
+							info = getInformationFromVirtual(self, movie, info, rand, neighbors)
+						End if
+					Else
+						// フォロワーでない、一般消費者の場合、一般消費者から情報を受信するかどうかの判定
+						If CountAgtSet(neighbors) > 0 Then
+							// consumers から満足度と批評値を受信する
+							info = getInformationFromReal(self, movie, info, rand, neighbors)
+						End if
+					End if
+					// ネットフォロワーから情報を受信するかどうかの判定
+					If CountAgtSet(followers) > 0 Then
+						// followers から満足度と批評値を受信する
+						info = getInformationFromReal(self, movie, info, rand, followers)
+					End if
+				End if
+			End if
+			
+			// 情報量を蓄積
+			self.Info(movie.IDNo) = self.Info(movie.IDNo) + info * self.effectiveness
+	
+			// 閾値比較による鑑賞意思決定
+			If (date > movie.startDate) And // 作品が公開済み
+					( self.Info(movie.IDNo)>self.infoThreshold Or // 情報量が閾値を超える 
+						 self.Utility(movie.IDNo)>rand*35+30) Then // 作品効用値が閾値を超える(h=35, l=30)
+				// 映画を鑑賞する場合の操作
+				self.viewStep(0, movie.IDNo) = self.viewStep(0, movie.IDNo) + 1 // 作品(movie)の鑑賞回数を増やす(フラグを立てる)
+				self.viewNum = self.viewNum + 1 // 映画の鑑賞回数を増やす
+				movie.numAudience = movie.numAudience + 1 // 作品の動員数を増やす
+			End if
+	
+		End if
+	Next movie
+	
+	//// ランダムに移動
+	//ForwardDirectionCell(Int(Rnd()*8), 1)
+
 }
 #end_rule UNIVERSE
 
@@ -450,39 +610,27 @@ End if
 // ネットユーザーはネットフォロワーに情報を伝達する
 // 宣伝や口コミで既に映画の情報を持っているフォロワーに情報を伝達する
 Agt_Init{
-Dim movies As Agtset
-Dim movie As Agt
 
-// ネットユーザーエージェントの情報伝達範囲は周囲10近傍(21*21セルの正方形内)
-My.transmission_range = 10
-
-// 作品毎のパラメータを決定する
-MakeAgtSet(movies, Universe.movie)
-For Each movie in movies
-	// 初期化
-	My.viewStep(0, movie.IDNo) = 0 // 鑑賞回数の初期化
-	My.viewStep(1, movie.IDNo) = 0 // 観賞後の経過時間の初期化
-Next movie
 }
 
 Agt_Step{
-Dim movies As Agtset
-Dim movie As Agt
-Dim date As Integer
-
-// 鑑賞情報の更新
-date = GetCountStep()
-MakeAgtSet(movies, Universe.movie)
-For Each movie in movies
-	If date == movie.startDate Then // ネットユーザーは映画を鑑賞済みである設定
-		If My.viewStep(0, movie.IDNo) == 0 Then
-			My.viewStep(0, movie.IDNo) = 1
+	Dim movies As Agtset
+	Dim movie As Agt
+	Dim date As Integer
+	
+	// 鑑賞情報の更新
+	date = GetCountStep()
+	MakeAgtSet(movies, Universe.movie)
+	For Each movie in movies
+		If date == movie.startDate Then // ネットユーザーは映画を鑑賞済みである設定
+			If My.viewStep(0, movie.IDNo) == 0 Then
+				My.viewStep(0, movie.IDNo) = 1
+			End if
 		End if
-	End if
-Next movie
-
-//// ランダムに移動
-//ForwardDirectionCell(Int(Rnd()*8), 1)
+	Next movie
+	
+	//// ランダムに移動
+	//ForwardDirectionCell(Int(Rnd()*8), 1)
 }
 #end_rule UNIVERSE.INTERNET.USER
 
@@ -495,188 +643,22 @@ Next movie
 #begin_rule UNIVERSE.INTERNET.FOLLOWER
 // ネットフォロワーは一般消費者とネットフォロワーに情報を伝達する
 Agt_Init{
-Dim movies As Agtset
-Dim movie As Agt
-Dim i As Integer
-Dim rand As Double
 
-// ネットフォロワーエージェントの情報伝達範囲は周囲1近傍(1*1セルの正方形内)
-My.transmission_range = 1
-
-// ジャンル毎の選好度を決定する
-For i=0 to 7
-	rand = Rnd()
-	If rand < Universe.genreRatio(i) Then // ジャンル選好割合に応じて重み付けを行う
-		My.W_g(i) = 1
-	// 1/0 から少しだけ変更してみる
-	Elseif rand > 0.9 Then // 10 % はそのジャンルが嫌いで重みを 0 とする
-		My.W_g(i) = 0
-	Else // 好きでも嫌いでもない場合は、0.1~0.9の値をランダムに与える
-		My.W_g(i) = Rnd() * 0.8 + 0.1
-	End if
-Next i
-
-// 商品の採用時期による消費者集団の分類に応じて閾値を決定(最終的な鑑賞閾値決定に使用)
-My.categoryThreshold = @getCategoryThreshold(Rnd())
-
-// 作品毎のパラメータを決定する
-MakeAgtSet(movies, Universe.movie)
-For Each movie in movies
-	// 鑑賞効用値の決定(r_U=0.66, n_U=2)
-	My.Utility(movie.IDNo) = 0.66 * (movie.review^2) * My.W_g(movie.genre-1)
-	// 初期化
-	My.Info(movie.IDNo) = 0 // 作品情報量の初期化
-	My.wGreed(movie.IDNo) = 1 // 満足度受信重みの初期化
-	My.wCriticism(movie.IDNo) = 1 // 批評値受信重みの初期化
-	My.viewStep(0, movie.IDNo) = 0 // 鑑賞回数の初期化
-	My.viewStep(1, movie.IDNo) = 0 // 観賞後の経過時間の初期化
-Next movie
-
-// エージェントの被影響性を決定
-My.effectiveness = Rnd() + 0.7
-
-// 映画鑑賞回数の初期化
-My.viewNum = 0
-
-// 未鑑賞かつ情報量最大の作品IDを初期化
-My.max_info_movie = 0
 }
 
 Agt_Step{
-Dim movies As Agtset, followers As Agtset, consumers As Agtset, users As Agtset
-Dim movie As Agt, follower As Agt, consumer As Agt, user As Agt
-Dim info As Double, rand As Double
-Dim date As Integer
-
-MakeAgtSet(movies, Universe.movie)
-SortAgtSet(movies, "IDNo", True)
-MakeOneAgtSetAroundOwnCell(users, Universe.Internet.user.transmission_range, Universe.Internet.user, False)
-MakeOneAgtSetAroundOwnCell(followers, My.transmission_range, Universe.Internet.follower, False)
-MakeOneAgtSetAroundPositionCell(consumers, Universe.Social, My.X, My.Y, 0, My.transmission_range, Universe.Social.consumer)
-date = GetCountStep()
-
-// 鑑賞閾値は映画の鑑賞回数に応じて減衰する(sigma=0.99)
-My.infoThreshold = My.categoryThreshold / (0.99^My.viewNum)
-
-// 鑑賞意思決定
-For Each movie in movies
-
-	If (date < movie.startDate-30) Or (My.viewStep(0, movie.IDNo)>=1) Then	
-		// 公開の30日以上前は何も行わない
-		// 鑑賞済みの作品についても情報の受信は行わない
-	else
-		info = 0 // 情報受信量の初期化
-		rand = Rnd() // その日の乱数を確定する
-		// 宣伝に接触するかどうかを判定
-		If rand < movie.promProb Then
-			info = info + movie.promotion // 宣伝情報量を追加
-		End if
-		// 周囲のエージェントから、知覚している作品の情報を受信する
-		If date > movie.startDate Then // 実評価値は公開以降のみ受け取り可能？
-			If My.Info(movie.IDNo) != 0 Then // 知覚していない作品の情報は受信できない
-				// ネットユーザーから情報を受信するかどうかの判定
-				If CountAgtSet(users) > 0 Then
-					For Each user in users
-						// 満足度を受け取るかどうかの判定
-						If rand < (0.013*movie.review^2)^user.viewStep(1, movie.IDNo) Then
-							info = info + movie.greed * My.wGreed(movie.IDNo)
-//						If My.wGreed(movie.IDNo) == 1 Then
-							//  一度情報を受け取ったら、以降の影響度は減少する
-							My.wGreed(movie.IDNo) = My.wGreed(movie.IDNo) * 0.8
-//						End if
-						End if
-						// 批評値を受け取るかどうかの判定
-						If rand < 0.374 Then
-							info = info + movie.criticism * My.wCriticism(movie.IDNo)
-//						If My.wCriticism(movie.IDNo) == 1 Then
-							//  一度情報を受け取ったら、以降の影響度は減少する
-							My.wCriticism(movie.IDNo) = My.wCriticism(movie.IDNo) * 0.8
-//						End if
-						End if
-					Next user
-				End if
-				// ネットフォロワーから情報を受信するかどうかの判定
-				If CountAgtSet(followers) > 0 Then
-					For Each follower in followers
-						If follower.viewStep(0, movie.IDNo) == 0 Then
-							// followerが作品を未鑑賞の場合は、最も情報量が蓄積された作品についての情報を流す
-							If movie.IDNo == follower.max_info_movie Then
-								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を5割にする
-								My.Info(movie.IDNo) = My.Info(movie.IDNo) + follower.Info(movie.IDNo) * My.effectiveness * 0.5
-							End if
-						Else
-							// followerが作品を鑑賞済みの場合は、満足度と批評値を伝える
-							// 満足度を受け取るかどうかの判定
-							If rand < (0.013*movie.review^2)^follower.viewStep(1, movie.IDNo) Then
-								info = info + movie.greed * My.wGreed(movie.IDNo)
-//							If My.wGreed(movie.IDNo) == 1 Then
-								//  一度情報を受け取ったら、以降の影響度は減少する
-								My.wGreed(movie.IDNo) = My.wGreed(movie.IDNo) * 0.8
-//							End if
-							End if
-							// 批評値を受け取るかどうかの判定
-							If rand < 0.374 Then
-								info = info + movie.criticism * My.wCriticism(movie.IDNo)
-//							If My.wCriticism(movie.IDNo) == 1 Then
-								//  一度情報を受け取ったら、以降の影響度は減少する
-								My.wCriticism(movie.IDNo) = My.wCriticism(movie.IDNo) * 0.8
-//							End if
-							End if
-						End if
-					Next follower
-				End if
-				// ネットフォロワーが一般消費者から情報を受け取るのはおかしいかも。。。
-//				// 一般消費者から情報を受信するかどうかの判定
-//				If CountAgtSet(consumers) > 0 Then
-//					For Each consumer in consumers
-//						If consumer.viewStep(0, movie.IDNo) == 0 Then
-//							// followerが作品を未鑑賞の場合は、最も情報量が蓄積された作品についての情報を流す
-//							If movie.IDNo == consumer.max_info_movie Then
-//								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を5割にする
-//								My.Info(movie.IDNo) = My.Info(movie.IDNo) + consumer.Info(movie.IDNo) * My.effectiveness * 0.5
-//							End if
-//						Else
-//							// consumerが作品を鑑賞済みの場合は、満足度と批評値を伝える
-//							// 満足度を受け取るかどうかの判定
-//							If rand < (0.013*movie.review^2)^consumer.viewStep(1, movie.IDNo) Then
-//								info = info + movie.greed * My.wGreed(movie.IDNo)
-//							If My.wGreed(movie.IDNo) == 1 Then
-//								//  一度情報を受け取ったら、以降の影響度は減少する
-//								My.wGreed(movie.IDNo) = My.wGreed(movie.IDNo) * 0.8
-//							End if
-//							End if
-//							// 批評値を受け取るかどうかの判定
-//							If rand < 0.374 Then
-//								info = info + movie.criticism * My.wCriticism(movie.IDNo)
-//							If My.wCriticism(movie.IDNo) == 1 Then
-//								//  一度情報を受け取ったら、以降の影響度は減少する
-//								My.wCriticism(movie.IDNo) = My.wCriticism(movie.IDNo) * 0.8
-//							End if
-//							End if
-//						End if
-//					Next consumer
-//				End if
-			End if
-		End if
-		
-		// 情報量を蓄積
-		My.Info(movie.IDNo) = My.Info(movie.IDNo) + info * My.effectiveness
-
-		// 閾値比較による鑑賞意思決定
-		If (date > movie.startDate) And // 作品が公開済み
-				( My.Info(movie.IDNo)>My.infoThreshold Or // 情報量が閾値を超える 
-					 My.Utility(movie.IDNo)>rand*35+30) Then // 作品効用値が閾値を超える(h=35, l=30)
-			// 映画を鑑賞する場合の操作
-			My.viewStep(0, movie.IDNo) = My.viewStep(0, movie.IDNo) + 1 // 作品(movie)の鑑賞回数を増やす(フラグを立てる)
-			My.viewNum = My.viewNum + 1 // 映画の鑑賞回数を増やす
-			movie.numAudience = movie.numAudience + 1 // 作品の動員数を増やす
-		End if
-
-	End if
-Next movie
-
-//// ランダムに移動
-//ForwardDirectionCell(Int(Rnd()*8), 1)
+	Dim movies As Agtset, followers As Agtset, consumers As Agtset, users As Agtset
+	Dim info As Double, rand As Double
+	Dim date As Integer
+	
+	MakeAgtSet(movies, Universe.movie)
+	SortAgtSet(movies, "IDNo", True)
+	MakeOneAgtSetAroundOwnCell(users, Universe.Internet.user.transmission_range, Universe.Internet.user, False)
+	MakeOneAgtSetAroundOwnCell(followers, My.transmission_range, Universe.Internet.follower, False)
+	MakeOneAgtSetAroundPositionCell(consumers, Universe.Social, My.X, My.Y, 0, My.transmission_range, Universe.Social.consumer)
+	date = GetCountStep()
+	
+	@functionAgtStep(My, movies, users, followers, date, True)
 }
 #end_rule UNIVERSE.INTERNET.FOLLOWER
 
@@ -689,165 +671,21 @@ Next movie
 #begin_rule UNIVERSE.SOCIAL.CONSUMER
 // 一般消費者は一般消費者に情報を伝達する
 Agt_Init{
-Dim movies As Agtset
-Dim movie As Agt
-Dim i As Integer
-Dim rand As Double
 
-// 一般消費者エージェントの情報伝達範囲は周囲1近傍(1*1セルの正方形内)
-My.transmission_range = 1
-
-// ジャンル毎の選好度を決定する
-For i=0 to 7
-	rand = Rnd()
-	If rand < Universe.genreRatio(i) Then // ジャンル選好割合に応じて重み付けを行う
-		My.W_g(i) = 1
-	// 1/0 から少しだけ変更してみる
-	Elseif rand > 0.9 Then // 10 % はそのジャンルが嫌いで重みを 0 とする
-		My.W_g(i) = 0
-	Else // 好きでも嫌いでもない場合は、0.1~0.9の値をランダムに与える
-		My.W_g(i) = Rnd() * 0.8 + 0.1
-	End if
-Next i
-
-// 商品の採用時期による消費者集団の分類に応じて閾値を決定(最終的な鑑賞閾値決定に使用)
-My.categoryThreshold = @getCategoryThreshold(Rnd())
-
-// 作品毎のパラメータを決定する
-MakeAgtSet(movies, Universe.movie)
-For Each movie in movies
-	// 鑑賞効用値の決定(r_U=0.66, n_U=2)
-	My.Utility(movie.IDNo) = 0.66 * (movie.review^2) * My.W_g(movie.genre-1)
-	// 初期化
-	My.Info(movie.IDNo) = 0 // 作品情報量の初期化
-	My.wGreed(movie.IDNo) = 1 // 満足度受信重みの初期化
-	My.wCriticism(movie.IDNo) = 1 // 批評値受信重みの初期化
-	My.viewStep(0, movie.IDNo) = 0 // 鑑賞回数の初期化
-	My.viewStep(1, movie.IDNo) = 0 // 観賞後の経過時間の初期化
-Next movie
-
-// エージェントの被影響性を決定
-My.effectiveness = Rnd() + 0.7
-
-// 映画鑑賞回数の初期化
-My.viewNum = 0
-
-// 未鑑賞かつ情報量最大の作品IDを初期化
-My.max_info_movie = 0
 }
 
 Agt_Step{
-Dim movies As Agtset, followers As Agtset, consumers As Agtset
-Dim movie As Agt, follower As Agt, consumer As Agt
-Dim info As Double, rand As Double
-Dim date As Integer
-
-MakeAgtSet(movies, Universe.movie)
-SortAgtSet(movies, "IDNo", True)
-MakeOneAgtSetAroundOwnCell(consumers, My.transmission_range, Universe.Social.consumer, False)
-MakeOneAgtSetAroundPositionCell(followers, Universe.Internet, My.X, My.Y, 0, My.transmission_range, Universe.Internet.follower)
-date = GetCountStep()
-
-// 鑑賞閾値は映画の鑑賞回数に応じて減衰する(sigma=0.99)
-My.infoThreshold = My.categoryThreshold / (0.99^My.viewNum)
-
-// 鑑賞意思決定
-For Each movie in movies
-
-	If (date < movie.startDate-30) Or (My.viewStep(0, movie.IDNo)>=1) Then	
-		// 公開の30日以上前は何も行わない
-		// 鑑賞済みの作品についても情報の受信は行わない
-	else
-		info = 0 // 情報受信量の初期化
-		rand = Rnd() // その日の乱数を確定する
-		// 宣伝に接触するかどうかを判定
-		If rand < movie.promProb Then
-			info = info + movie.promotion // 宣伝情報量を追加
-		End if
-		// 周囲のエージェントから、知覚している作品の情報を受信する
-		If date > movie.startDate Then // 実評価値は公開以降のみ受け取り可能？
-			If My.Info(movie.IDNo) != 0 Then // 知覚していない作品の情報は受信できない
-				// ネットフォロワーから情報を受信するかどうかの判定
-				If CountAgtSet(followers) > 0 Then
-					For Each follower in followers
-						If follower.viewStep(0, movie.IDNo) == 0 Then
-							// followerが作品を未鑑賞の場合は、最も情報量が蓄積された作品についての情報を流す
-							If movie.IDNo == follower.max_info_movie Then
-								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を5割にする
-								My.Info(movie.IDNo) = My.Info(movie.IDNo) + follower.Info(movie.IDNo) * My.effectiveness * 0.5
-							End if
-						Else
-							// followerが作品を鑑賞済みの場合は、満足度と批評値を伝える
-							// 満足度を受け取るかどうかの判定
-							If rand < (0.013*movie.review^2)^follower.viewStep(1, movie.IDNo) Then
-								info = info + movie.greed * My.wGreed(movie.IDNo)
-//							If My.wGreed(movie.IDNo) == 1 Then
-								//  一度情報を受け取ったら、以降の影響度は減少する
-								My.wGreed(movie.IDNo) = My.wGreed(movie.IDNo) * 0.8
-//							End if
-							End if
-							// 批評値を受け取るかどうかの判定
-							If rand < 0.374 Then
-								info = info + movie.criticism * My.wCriticism(movie.IDNo)
-//							If My.wCriticism(movie.IDNo) == 1 Then
-								//  一度情報を受け取ったら、以降の影響度は減少する
-								My.wCriticism(movie.IDNo) = My.wCriticism(movie.IDNo) * 0.8
-//							End if
-							End if
-						End if
-					Next follower
-				End if
-				// 一般消費者から情報を受信するかどうかの判定
-				If CountAgtSet(consumers) > 0 Then
-					For Each consumer in consumers
-						If consumer.viewStep(0, movie.IDNo) == 0 Then
-							// consumerが作品を未鑑賞の場合は、最も情報量が蓄積された作品についての情報を流す
-							If movie.IDNo == consumer.max_info_movie Then
-								// 鑑賞済みのユーザーより影響が小さい（らしい）ので被影響性を5割にする
-								My.Info(movie.IDNo) = My.Info(movie.IDNo) + consumer.Info(movie.IDNo) * My.effectiveness * 0.5
-							End if
-						Else
-							// consumerが作品を鑑賞済みの場合は、満足度と批評値を伝える
-							// 満足度を受け取るかどうかの判定
-							If rand < (0.013*movie.review^2)^consumer.viewStep(1, movie.IDNo) Then
-								info = info + movie.greed * My.wGreed(movie.IDNo)
-//							If My.wGreed(movie.IDNo) == 1 Then
-								//  一度情報を受け取ったら、以降の影響度は減少する
-								My.wGreed(movie.IDNo) = My.wGreed(movie.IDNo) * 0.8
-//							End if
-							End if
-							// 批評値を受け取るかどうかの判定
-							If rand < 0.374 Then
-								info = info + movie.criticism * My.wCriticism(movie.IDNo)
-//							If My.wCriticism(movie.IDNo) == 1 Then
-								//  一度情報を受け取ったら、以降の影響度は減少する
-								My.wCriticism(movie.IDNo) = My.wCriticism(movie.IDNo) * 0.8
-//							End if
-							End if
-						End if
-					Next consumer
-				End if
-			End if
-		End if
-		
-		// 情報量を蓄積
-		My.Info(movie.IDNo) = My.Info(movie.IDNo) + info * My.effectiveness
-		
-		// 閾値比較による鑑賞意思決定
-		If (date > movie.startDate) And // 作品が公開済み
-				( My.Info(movie.IDNo)>My.infoThreshold Or // 情報量が閾値を超える 
-					 My.Utility(movie.IDNo)>rand*35+30) Then // 作品効用値が閾値を超える(h=35, l=30)
-			// 映画を鑑賞する場合の操作
-			My.viewStep(0, movie.IDNo) = My.viewStep(0, movie.IDNo) + 1 // 作品(movie)の鑑賞回数を増やす(フラグを立てる)
-			My.viewNum = My.viewNum + 1 // 映画の鑑賞回数を増やす
-			movie.numAudience = movie.numAudience + 1 // 作品の動員数を増やす
-		End if
-		
-	End if
-Next movie
-
-//// ランダムに移動
-//ForwardDirectionCell(Int(Rnd()*8), 1)
+	Dim movies As Agtset, followers As Agtset, consumers As Agtset
+	Dim info As Double, rand As Double
+	Dim date As Integer
+	
+	MakeAgtSet(movies, Universe.movie)
+	SortAgtSet(movies, "IDNo", True)
+	MakeOneAgtSetAroundOwnCell(consumers, My.transmission_range, Universe.Social.consumer, False)
+	MakeOneAgtSetAroundPositionCell(followers, Universe.Internet, My.X, My.Y, 0, My.transmission_range, Universe.Internet.follower)
+	date = GetCountStep()
+	
+	@functionAgtStep(My, movies, consumers, followers, date, False)
 }
 #end_rule UNIVERSE.SOCIAL.CONSUMER
 
@@ -915,7 +753,7 @@ Single_Simulation {
 Repeat_Simulation {
     Value_Change = None;
     Initial_Value_Change_None {
-        Repeat_Max = 1;
+        Repeat_Max = 10;
     }
 }
 
@@ -1417,7 +1255,7 @@ Control_Panel {
         Font_Color = 0, 0, 0;
         Font_Background_Color = 0, 0, 0;
         Var_Name = "Universe.series";
-        Text_Data = "1";
+        Text_Data = "10";
     }
     Panel_Item {
         Item_Type = Edit_Box;
@@ -1524,7 +1362,17 @@ Model_Description {
         }
         Function writeEnvInfo {
         }
+        Function getParams {
+        }
         Function getCategoryThreshold {
+        }
+        Function getGenreWeight {
+        }
+        Function getInformationFromVirtual {
+        }
+        Function getInformationFromReal {
+        }
+        Function functionAgtStep {
         }
     }
     Space Universe.Internet {
