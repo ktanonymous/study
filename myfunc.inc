@@ -32,6 +32,7 @@ Function getCategoryThreshold(rand As Double) As Double {
 // 消費者の作品ごとのパラメータを取得する
 Sub getParams(self As Agt, movies As Agtset, num_genre As Integer) {
     Dim movie As Agt
+    Dim norm As Double, mu As Double, sigma As Double
 
     For Each movie in movies
         // 鑑賞効用値の決定(r_U = 0.66, n_U = 2)
@@ -52,7 +53,20 @@ Sub getParams(self As Agt, movies As Agtset, num_genre As Integer) {
     // 消費者の被影響性を決定
     self.effectiveness = Rnd() + 0.7
     // 映画鑑賞回数の初期化
-    self.viewNum = 0
+    // self.viewNum = 0
+    // 映画鑑賞回数の初期化、対数正規分布(https://sci-fx.net/math-log-norm-dist/)を利用するパターン
+    // 対数正規分布のピーク(最頻値)は exp(mu - sigma ^ 2) となるらしい
+    // 対数正規分布の累積分布関数の値が 1/2 となるときが中央値になる定義で、その値は exp(mu) になるらしい
+    mu = Log(Universe.medianDist)
+    sigma = Sqr(mu - Log(Universe.modeDist))
+    norm = Exp(NormInv(Rnd(), mu, sigma))  // NormInv は「逆関数法」というものを利用しているらしい
+    norm = Int(norm)
+    self.viewNum = norm
+    self.initialViewNum = norm
+    If Universe.maxInitialViewNum < norm Then
+        Universe.maxInitialViewNum = norm
+    End if
+    // PrintLn(self.viewNum)
     // 未鑑賞かつ情報量最大の作品IDを初期化
     self.max_info_movie = 0
 }
