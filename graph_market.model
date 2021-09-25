@@ -22,6 +22,9 @@ UNIVERSE {
             Dim transmission_range(0, 0) As Integer = (0);
             Dim IDNo(0, 0) As Integer = (0);
             Dim viewStep(0, 0)[18][18] As Integer = (324*0);
+            Dim followee(0, 0) As AgtSet = ();
+            Dim num_followee(0, 0) As Integer = (0);
+            Dim follower(0, 0) As AgtSet = ();
         }
         AgtType follower(0, 0)[0] {
             Dim ID(0, 0) As Integer = (0);
@@ -42,6 +45,7 @@ UNIVERSE {
             Dim viewNum(0, 0) As Integer = (0);
             Dim Utility(0, 0)[18] As Double = (18*0.0);
             Dim max_info_movie(0, 0) As Integer = (0);
+            Dim followee(0, 0) As AgtSet = ();
         }
     }
     Space Social(0,0),Square_2D(40, 40, Loop, North, 1, !Map_3D){
@@ -88,6 +92,9 @@ UNIVERSE {
     Dim series(0, 0) As Integer = (0);
     Dim period(0, 0) As Integer = (0);
     Dim dir(0, 0) As String = ("");
+    Dim num_edges(0, 0) As Integer = ();
+    Dim num_new_in_edges(0, 0) As Integer = ();
+    Dim num_new_out_edges(0, 0) As Integer = ();
 }
 
 
@@ -98,7 +105,7 @@ Initial_Value {
     UNIVERSE.USER_RATIO = 1(0.16);
     UNIVERSE.FOLLOWER_RATIO = 1(0.24);
     UNIVERSE.CONSUMER_RATIO = 1(0.6);
-    UNIVERSE.NUM_AGENT = 1(1000);
+    UNIVERSE.NUM_AGENT = 1(100);
     UNIVERSE.GENRERATIO = 1(0.2, 0.27, 0.43, 0.45, 0.48, 0.6, 0.61, 0.69);
     UNIVERSE.SERIES = 1(1);
     UNIVERSE.PERIOD = 1(400);
@@ -109,19 +116,22 @@ Initial_Value {
 // Agent Rule
 //-------------------------------------------------------
 #begin_rule UNIVERSE
-/* ver2.1
+/* ver2.2.1
 • ジャンル選好度 W_g について、「普通」の選好度 0.1 ~ 0.9 で与える
 • 2回目以降の満足度/批評値の受信重みを2割ずつ減衰するようにした
 • 各種操作を関数化
+• インターネット上にグラフ構造を追加して、リンクを参照することで情報を得るモデル
+• 現実世界での情報伝播はこれまでと同様
+• まずは、ネットユーザーは全員繋がっている関係にあるとする
 • 
 */
 
-include "myfunc.inc"
+include "myfunc_graph.inc"
 
 Univ_Init{
-	Dim num_netuser As Integer, num_netfollower As Integer, num_consumer As Integer
+	Dim num_netuser As Integer, num_netfollower As Integer, num_consumer As Integer, num_agtset As Integer
 	Dim netuser As Agtset, netfollower As Agtset, consumer As Agtset, movies As Agtset
-	Dim one As Agt
+	Dim one As Agt, follower As Agt
 	Dim i As Integer, j As Integer, mode As Integer
 	Dim min As Double, criteria As Double
 	
@@ -139,7 +149,7 @@ Univ_Init{
 	End if
 	
 	// 出力先のディレクトリ名を宣言
-	Universe.dir = "resultOrigin"
+	Universe.dir = "graph_market"
 	
 //	// 乱数シードの指定
 //	SetRandomSeed(88)
@@ -186,6 +196,7 @@ Univ_Init{
 	// ネットユーザーエージェントを生成
 	num_netuser = Round(Universe.num_agent * Universe.user_ratio)
 	For i=0 to num_netuser-1
+		MakeAgtset(netuser, Universe.Internet.user)  // エージェント追加前のネットユーザーの一覧を取得する
 		one = CreateAgt(Universe.Internet.user)
 		one.IDNo = i // エージェントに識別番号を付与する
 		one.transmission_range = 10  // userの情報伝達範囲は周囲10近傍(21*21セルの正方形内)
@@ -194,8 +205,23 @@ Univ_Init{
 			one.viewStep(0, movie.IDNo) = 0  // 鑑賞回数の初期化
 			one.viewStep(1, movie.IDNo) = 0  // 観賞後の経過時間の初期化
 		Next movie
+		// ネットユーザー上のスケールフリーネットワークを構築する
+		num_agtset = CountAgtSet(netuser)
+//		one.num_followee = 0  // 初期化
+		If num_agtset == 1 Then
+			// 2人が繋がった小さなネットワークから構築を始める
+			initializeNetwork(one, GetAgt(netuser, 0))
+//			follower = GetAgt(netuser, 0)
+//			AddAgt(one.followee, follower)
+//			AddAgt(follower.followee, one)
+//			one.num_followee = one.num_followee + 1
+//			follower.num_followee = follower.num_followee + 1
+//			Universe.num_edges = 2
+		Elseif num_agtset > 1 Then
+			// 3人目以降は、リンクの度数が高いほど繋がりやすくなる
+//			updateNetwork(netuser, one)
+		End if
 	Next i
-	MakeAgtset(netuser, Universe.Internet.user)
 	RandomPutAgtSetCell(netuser, True)
 	
 	
@@ -588,7 +614,7 @@ Map_Output {
     Draw_Range = 0, 0, 40, 40;
     Ruled_Line = Yes;
     Text_Display = No;
-    Text_Display_Variable_Name = "";
+    Text_Display_Variable_Name = "Universe.dir";
     Chess_Type_Display_Position = Yes;
     Background_Transparent = No;
     Target_Layer = 0;
@@ -615,7 +641,7 @@ Map_Output {
         Line_Width_Variable = "";
         Line_Color_Variable = "";
         Agent_Color = 255,0,0;
-        Marker_Id = 2;
+        Marker_Id = 1;
         Effective_Figures = 0;
         Format_Id = 0;
         Agent_Image_Direction = No;
@@ -980,7 +1006,7 @@ Time_Graph {
 // Control Panel Definition Division
 //-------------------------------------------------------
 Control_Panel {
-    Display_Area = 16, 70, 150, 376;
+    Display_Area = 13, 329, 160, 473;
     Display_Type = 0;
     Panel_Item {
         Item_Type = Edit_Box;
@@ -1032,7 +1058,7 @@ Control_Panel {
         Font_Color = 0, 0, 0;
         Font_Background_Color = 0, 0, 0;
         Var_Name = "Universe.num_agent";
-        Text_Data = "1000";
+        Text_Data = "100";
     }
     Panel_Item {
         Item_Type = Edit_Box;
@@ -1059,6 +1085,32 @@ Control_Panel {
         Font_Background_Color = 0, 0, 0;
         Var_Name = "Universe.period";
         Text_Data = "400";
+    }
+    Panel_Item {
+        Item_Type = Edit_Box;
+        Item_Name = "num_new_in_edges";
+        Display_Area = 0, 0, 0, 0;
+        Font_Name = "";
+        Font_Char_Set = 0;
+        Font_Size = 0.0;
+        Font_Style = 0;
+        Font_Color = 0, 0, 0;
+        Font_Background_Color = 0, 0, 0;
+        Var_Name = "Universe.num_new_in_edges";
+        Text_Data = "3";
+    }
+    Panel_Item {
+        Item_Type = Edit_Box;
+        Item_Name = "num_new_out_edges";
+        Display_Area = 0, 0, 0, 0;
+        Font_Name = "";
+        Font_Char_Set = 0;
+        Font_Size = 0.0;
+        Font_Style = 0;
+        Font_Color = 0, 0, 0;
+        Font_Background_Color = 0, 0, 0;
+        Var_Name = "Universe.num_new_out_edges";
+        Text_Data = "3";
     }
 }
 
@@ -1126,6 +1178,7 @@ Window_Rectangle {
     Window_Name = Main_Window, 0, 0, 1440, 900;
     Window_Name = Output_Setting_Window, 495, 275, 480, 350;
     Window_Name = Artisoc_Help_Window, 10, 10, 400, 300;
+    Window_Name = Output_Group_Setting_Window, 405, 275, 630, 350;
 }
 
 
@@ -1144,6 +1197,8 @@ Model_Description {
         Variable series = "実行回数";
         Function writeEnvInfo {
         }
+        Function getCategoryThreshold {
+        }
         Function getParams {
         }
         Function getGenreWeight {
@@ -1153,6 +1208,8 @@ Model_Description {
         Function getInformationFromReal {
         }
         Function functionAgtStep {
+        }
+        Function initializeNetwork {
         }
         Function Univ_Init {
         }
