@@ -4,5 +4,5 @@
 !/*.inc
 !/README.md
 !/.git*
-!/json
-!/py
+!/json/
+!/py/
