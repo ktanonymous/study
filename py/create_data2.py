@@ -101,7 +101,9 @@ def main(input_file: str, period: int):
     broadcast_days = np.loadtxt(file_path, skiprows=1).astype(int)
     # 宣伝費データ
     file_path = os.path.join(csv_directory, 'promotion_cost.csv')
-    promotion_costs = np.loadtxt(file_path, skiprows=1).astype(int)
+    # NOTE: models.py では int だが、今だけ型違い
+    MILLION = 1000000
+    promotion_costs = np.loadtxt(file_path, skiprows=1) / MILLION
     min_promo_cost = promotion_costs.min()
     max_promo_cost = promotion_costs.max()
     range_promo_cost = max_promo_cost - min_promo_cost
@@ -165,7 +167,7 @@ def main(input_file: str, period: int):
                 ]
             )
 
-        ax[row, col].set_title(f"{movie.genre}")
+        ax[row, col].set_title(f"{movie.genre}({movie.promo_cost:.2f}M$)")
         ax[row, col].hist(data.sum(axis=1), label='view_data')
         ax[row, col].hist(genre_preference, label='preference')
         ax[row, col].legend()
@@ -218,9 +220,9 @@ def label_is_viewed(
     if probability > 1:
         probability = 1
 
-    # 映画が嫌いな人は映画を見ない
+    # 映画が嫌いな人は映画をあまり見ない
     if not consumer.does_like_movie:
-        probability = 0
+        probability *= 0.5
 
     label = 1 if probability > (1 - genre_preference) else 0
 
