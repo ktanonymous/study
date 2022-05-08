@@ -30,8 +30,8 @@ from dataclasses import dataclass
 from dummy_creator import create_dummy as dummy
 from typing import Dict, List, Optional
 
-from .models import Consumer, Movie
-from .const import (
+from models import Consumer, Movie
+from const import (
     LIKE, DISLIKE, UNCONCERNED,
     DOCUMENTARY, HORROR, FANTASY, ANIME,
     SF, COMEDY, DRAMA, ACTION_ADVENTURE,
@@ -40,6 +40,7 @@ from .const import (
 
 
 # TODO: 疑似的なユーザー同士のつながり（情報交換）を生成
+# TODO: -> ランダムにネットワークを形成して followee の鑑賞状況を参照する？
 def main(input_file: str, period: int):
     # json ファイルを利用してダミーデータを作成
     keys = dummy(input_file)
@@ -74,7 +75,6 @@ def main(input_file: str, period: int):
             consume_type=customer_type,
             richness=salarie,
             n_views=n_initial_view,
-            n_children=n_children,
             does_like_movie=does_like_movie,
             children_genre=children_genre,
         )
@@ -83,7 +83,6 @@ def main(input_file: str, period: int):
             customer_type,
             n_initial_view,
             salarie,
-            n_children,
             does_like_movie,
             children_genre,
         ) in zip(
@@ -91,7 +90,6 @@ def main(input_file: str, period: int):
             customer_types,
             n_initial_views,
             salaries,
-            n_childrens,
             does_like_movies,
             children_genres,
         )
@@ -194,7 +192,7 @@ def label_is_viewed(
 
     # 平日（月〜金）は見に行きにくい
     if day % 7 <= 5:
-        probability *= 0.1
+        probability *= 0.9
 
     # 公開から時間が経つと見にくくなる
     elapsed_day = day - broadcast_day
@@ -215,7 +213,7 @@ def label_is_viewed(
     # 好きなジャンルほどよく見る
     genre_preference: float = consumer.genre_preference[movie.genre]
     # ジャンルを好む度合いに合わせて鑑賞確率を乗じる
-    probability *= 1 + (genre_preference - 0.5)
+    probability *= 1 + (genre_preference - 0.3)
     # 好みを反映して確率が1を超えた場合の調整
     if probability > 1:
         probability = 1
@@ -224,7 +222,7 @@ def label_is_viewed(
     if not consumer.does_like_movie:
         probability = 0
 
-    label = 1 if probability > (1 - preference) else 0
+    label = 1 if probability > (1 - genre_preference) else 0
 
     return label
 
@@ -335,7 +333,7 @@ def csv2list(file_name: str, label2value) -> List[Optional[str]]:
     return list(does_like_movies)
 
 
-def label2value(label: pd.core.series.Sereis) -> list:
+def label2value(label: pd.core.series.Series) -> list:
     return
 
 

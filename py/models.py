@@ -12,9 +12,8 @@ class Consumer(object):
     richness: Optional[float] = None
     busyness: Optional[float] = None
     n_views: int = 0
-    n_children: int = 0
     does_like_movie: bool = True
-    children_genre: Optional[str]
+    children_genre: Optional[str] = None
 
 
 @dataclass
