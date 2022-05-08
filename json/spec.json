@@ -8,8 +8,8 @@
     "gender": {
         "number": 800,
         "label": {
-            "1": "male",
-            "2": "female"
+            "male": 1,
+            "female": 2
         },
         "dist": "random",
         "weights": {
@@ -26,10 +26,10 @@
     "customer_type": {
         "number": 800,
         "label": {
-            "1": "initial_user",
-            "2": "pre_user",
-            "3": "after_user",
-            "4": "late_user"
+            "initial_user": 1,
+            "pre_user": 2,
+            "after_user": 3,
+            "late_user": 4
         },
         "dist": "random",
         "weights": {
@@ -39,24 +39,64 @@
             "4": 0.16
         }
     },
+    "n_children": {
+        "number": 800,
+        "dist": "log_normal",
+        "median": 2,
+        "mode": 2
+    },
+    "children_genres": {
+        "number": 800,
+        "label": {
+            "None": 1,
+            "documentary": 2,
+            "horror": 3,
+            "fantasy": 4,
+            "anime": 5,
+            "sf": 6,
+            "comedy": 7,
+            "drama": 8,
+            "action_adventure": 9
+        },
+        "dist": "random",
+        "weights": {
+            "1": 0.5,
+            "2": 0.0625,
+            "3": 0.0625,
+            "4": 0.0625,
+            "5": 0.0625,
+            "6": 0.0625,
+            "7": 0.0625,
+            "8": 0.0625,
+            "9": 0.0625
+        }
+    },
+    "does_like_movie": {
+        "number": 8000,
+        "label": {
+            "like": 1,
+            "dislike": 0
+        },
+        "dist": "random"
+    },
     "promotion_cost": {
         "number": 18,
         "dist": "uniform",
         "min": 10000000,
         "max": 100000000
     },
-    "broadcat_day": {
+    "broadcast_day": {
         "number": 18,
         "dist": "uniform",
         "min": 0,
         "max": 300
     },
-    "docunentary_preference": {
+    "documentary_preference": {
         "number": 800,
         "label": {
-            "1": "like",
-            "2": "unconcerned",
-            "3": "dislike"
+            "like": 1,
+            "unconcerned": 2,
+            "dislike": 3
         },
         "dist": "random",
         "weights": {
@@ -68,9 +108,9 @@
     "horror_preference": {
         "number": 800,
         "label": {
-            "1": "like",
-            "2": "unconcerned",
-            "3": "dislike"
+            "like": 1,
+            "unconcerned": 2,
+            "dislike": 3
         },
         "dist": "random",
         "weights": {
@@ -82,9 +122,9 @@
     "fantasy_preference": {
         "number": 800,
         "label": {
-            "1": "like",
-            "2": "unconcerned",
-            "3": "dislike"
+            "like": 1,
+            "unconcerned": 2,
+            "dislike": 3
         },
         "dist": "random",
         "weights": {
@@ -96,9 +136,9 @@
     "anime_preference": {
         "number": 800,
         "label": {
-            "1": "like",
-            "2": "unconcerned",
-            "3": "dislike"
+            "like": 1,
+            "unconcerned": 2,
+            "dislike": 3
         },
         "dist": "random",
         "weights": {
@@ -110,9 +150,9 @@
     "sf_preference": {
         "number": 800,
         "label": {
-            "1": "like",
-            "2": "unconcerned",
-            "3": "dislike"
+            "like": 1,
+            "unconcerned": 2,
+            "dislike": 3
         },
         "dist": "random",
         "weights": {
@@ -124,9 +164,9 @@
     "comedy_preference": {
         "number": 800,
         "label": {
-            "1": "like",
-            "2": "unconcerned",
-            "3": "dislike"
+            "like": 1,
+            "unconcerned": 2,
+            "dislike": 3
         },
         "dist": "random",
         "weights": {
@@ -138,9 +178,9 @@
     "drama_preference": {
         "number": 800,
         "label": {
-            "1": "like",
-            "2": "unconcerned",
-            "3": "dislike"
+            "like": 1,
+            "unconcerned": 2,
+            "dislike": 3
         },
         "dist": "random",
         "weights": {
@@ -152,9 +192,9 @@
     "action_adventure_preference": {
         "number": 800,
         "label": {
-            "1": "like",
-            "2": "unconcerned",
-            "3": "dislike"
+            "like": 1,
+            "unconcerned": 2,
+            "dislike": 3
         },
         "dist": "random",
         "weights": {
