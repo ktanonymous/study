@@ -39,12 +39,6 @@
             "4": 0.16
         }
     },
-    "n_children": {
-        "number": 800,
-        "dist": "log_normal",
-        "median": 2,
-        "mode": 2
-    },
     "children_genres": {
         "number": 800,
         "label": {
@@ -72,7 +66,7 @@
         }
     },
     "does_like_movie": {
-        "number": 8000,
+        "number": 800,
         "label": {
             "like": 1,
             "dislike": 0
