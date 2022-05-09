@@ -21,6 +21,7 @@
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+import functools
 import os
 import pandas as pd
 import random
@@ -69,8 +70,12 @@ def main(input_file: str, period: int):
     # 映画自体が好きかどうか
     does_like_movies = list_does_like_movie(file_name='does_like_movie.csv')
 
+    # ID リスト
+    n_customers = len(does_like_movies)
+    consumer_ids = [i for i in range(n_customers)]
     consumers = [
         Consumer(
+            id_num=consumer_id,
             genre_preference=preference,
             consume_type=customer_type,
             richness=salarie,
@@ -79,6 +84,7 @@ def main(input_file: str, period: int):
             children_genre=children_genre,
         )
         for(
+            consumer_id,
             preference,
             customer_type,
             n_initial_view,
@@ -86,6 +92,7 @@ def main(input_file: str, period: int):
             does_like_movie,
             children_genre,
         ) in zip(
+            consumer_ids,
             preferences,
             customer_types,
             n_initial_views,
@@ -94,6 +101,8 @@ def main(input_file: str, period: int):
             children_genres,
         )
     ]
+    # 疑似的なユーザー間のつながりを作成
+    follow_each_other(consumers)
 
     # 映画の基本情報を読み込む
     # 公開日データ
@@ -133,7 +142,6 @@ def main(input_file: str, period: int):
     # 動員データフレームの作成
 
     # 全ての映画について
-    n_customers = len(consumers)
     n_movies = len(movies)
     view_data = [np.zeros((n_customers, period)) for _ in range(n_movies)]
     n_cols = 4
@@ -162,12 +170,14 @@ def main(input_file: str, period: int):
                         movie,
                         min_promo_cost,
                         range_promo_cost,
+                        past_view_data=view_data[idx][:, :day]
                     )
                     for consumer in consumers_not_viewed
                 ]
             )
 
-        ax[row, col].set_title(f"{movie.genre}({movie.promo_cost:.2f}M$)")
+        title = f"{movie.genre}(promo: {movie.promo_cost:.2f} M$)"
+        ax[row, col].set_title(title)
         ax[row, col].hist(data.sum(axis=1), label='view_data')
         ax[row, col].hist(genre_preference, label='preference')
         ax[row, col].legend()
@@ -189,12 +199,13 @@ def label_is_viewed(
     movie: Movie,
     min_promo_cost: int,
     range_promo_cost: int,
+    past_view_data: np.ndarray,
 ) -> int:
     probability = random.random()
 
     # 平日（月〜金）は見に行きにくい
     if day % 7 <= 5:
-        probability *= 0.9
+        probability *= 0.7
 
     # 公開から時間が経つと見にくくなる
     elapsed_day = day - broadcast_day
@@ -209,6 +220,7 @@ def label_is_viewed(
     # 宣伝費が高いほど観客が増えやすい
     # 全作品を通しての宣伝費のレンジに対して、
     # 各作品の宣伝費が最低額よりどの程度高いかに応じて倍率を計上する
+    # NOTE: あまり効果がハッキリしない（是非は不明）
     promo_cost_level = (movie.promo_cost - min_promo_cost) / range_promo_cost
     probability *= 1 + promo_cost_level
 
@@ -216,7 +228,17 @@ def label_is_viewed(
     genre_preference: float = consumer.genre_preference[movie.genre]
     # ジャンルを好む度合いに合わせて鑑賞確率を乗じる
     probability *= 1 + (genre_preference - 0.3)
-    # 好みを反映して確率が1を超えた場合の調整
+    # 子供の好みのジャンルは見る機会が増える
+    if consumer.children_genre == movie.genre:
+        probability *= 1.3
+    # フォローしている人が見ているほど見たくなる
+    n_followee = len(consumer.followee)
+    if n_followee != 0:
+        followee_view_data = past_view_data[consumer.followee, :].sum(axis=1)
+        n_viewed_followee = followee_view_data.sum()
+        probability *= 1 + n_viewed_followee / n_followee
+
+    # 消費者ごとの属性等を反映して確率が1を超えた場合の調整
     if probability > 1:
         probability = 1
 
@@ -336,6 +358,32 @@ def csv2list(file_name: str, label2value) -> List[Optional[str]]:
 
 
 def label2value(label: pd.core.series.Series) -> list:
+    return
+
+
+def follow_each_other(users: List[Consumer]) -> None:
+    """ユーザー同士のつながりを作成
+    """
+    follow = functools.partial(
+        _follow_each_other,
+        min_followee=0, max_followee=len(users)
+    )
+
+    for user in users:
+        follow(user)
+    return
+
+
+def _follow_each_other(user, min_followee, max_followee) -> None:
+    n_followee = random.randint(min_followee, max_followee // 10)
+
+    candidats = [
+        i for i in range(min_followee, max_followee)
+        if i != user.id_num
+    ]
+    followee = random.sample(candidats, n_followee)
+
+    user.followee = followee
     return
 
 

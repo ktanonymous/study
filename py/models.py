@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 
 @dataclass
 class Consumer(object):
+    id_num: int
     genre_preference: Dict[str, float] = None
     status: Optional[str] = None
     motivation: Optional[float] = None
@@ -14,6 +15,7 @@ class Consumer(object):
     n_views: int = 0
     does_like_movie: bool = True
     children_genre: Optional[str] = None
+    followee: List[int] = None
 
 
 @dataclass
