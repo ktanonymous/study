@@ -287,6 +287,7 @@ def _list_preferences(genre: str, directory: str) -> List[float]:
 def label2value_preference(label: pd.core.series.Series) -> float:
     label_str = label[0]
 
+    # NOTE: preference の値は手動調整
     if label_str == LIKE:
         value = 0.9
     elif label_str == DISLIKE:
