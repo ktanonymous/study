@@ -44,7 +44,8 @@ from const import (
 # TODO: -> ランダムにネットワークを形成して followee の鑑賞状況を参照する？
 def main(input_file: str, period: int):
     # json ファイルを利用してダミーデータを作成
-    keys = dummy(input_file)
+    input_files = [input_file]
+    keys = dummy(params=None, input_files=input_files)
     csv_directory = os.path.join(os.path.dirname(__file__), '../csv')
 
     # 消費者の基本情報を読み込む
@@ -229,8 +230,9 @@ def label_is_viewed(
     # ジャンルを好む度合いに合わせて鑑賞確率を乗じる
     probability *= 1 + (genre_preference - 0.3)
     # 子供の好みのジャンルは見る機会が増える
-    if consumer.children_genre == movie.genre:
-        probability *= 1.3
+    # NOTE: 現段階ではスキップ(8/30)
+    # if consumer.children_genre == movie.genre:
+    #     probability *= 1.3
     # フォローしている人が見ているほど見たくなる
     n_followee = len(consumer.followee)
     if n_followee != 0:
@@ -244,7 +246,7 @@ def label_is_viewed(
 
     # 映画が嫌いな人は映画をあまり見ない
     if not consumer.does_like_movie:
-        probability *= 0.5
+        probability *= 0.2
 
     # 映画を何度も見ていると見にくくなる
     probability *= (1 / 0.99) ** consumer.n_views
@@ -296,14 +298,14 @@ def label2value_preference(label: pd.core.series.Series) -> float:
 
     # NOTE: preference の値は手動調整
     if label_str == LIKE:
-        interval = 0.2
-        offset = 0.8
+        interval = 0.25
+        offset = 0.75
     elif label_str == DISLIKE:
-        interval = 0.1
+        interval = 0.25
         offset = 0.0
     else:
         interval = 0.5
-        offset = 0.0
+        offset = 0.25
 
     value = calc_random_preference(interval=interval, offset=offset)
     return value
