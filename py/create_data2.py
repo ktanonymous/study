@@ -78,7 +78,7 @@ def main(input_file: str, period: int):
             id_num=consumer_id,
             genre_preference=preference,
             consume_type=customer_type,
-            richness=salarie,
+            richness=salary,
             n_views=n_initial_view,
             does_like_movie=does_like_movie,
             children_genre=children_genre,
@@ -88,7 +88,7 @@ def main(input_file: str, period: int):
             preference,
             customer_type,
             n_initial_view,
-            salarie,
+            salary,
             does_like_movie,
             children_genre,
         ) in zip(
@@ -185,8 +185,8 @@ def main(input_file: str, period: int):
     plt.show()
 
 
-def calc_random_preference() -> float:
-    random_preference = random.random() * 0.5
+def calc_random_preference(interval: float = 1.0, offset: float = 0.0) -> float:
+    random_preference = random.random() * interval + offset
 
     return random_preference
 
@@ -246,7 +246,14 @@ def label_is_viewed(
     if not consumer.does_like_movie:
         probability *= 0.5
 
-    label = 1 if probability > (1 - genre_preference) else 0
+    # 映画を何度も見ていると見にくくなる
+    probability *= (1 / 0.99) ** consumer.n_views
+
+    if probability > 1 - genre_preference:
+        label = 1
+        consumer.n_views += 1
+    else:
+        label = 0
 
     return label
 
@@ -289,12 +296,16 @@ def label2value_preference(label: pd.core.series.Series) -> float:
 
     # NOTE: preference の値は手動調整
     if label_str == LIKE:
-        value = 0.9
+        interval = 0.2
+        offset = 0.8
     elif label_str == DISLIKE:
-        value = 0.1
+        interval = 0.1
+        offset = 0.0
     else:
-        value = calc_random_preference()
+        interval = 0.5
+        offset = 0.0
 
+    value = calc_random_preference(interval=interval, offset=offset)
     return value
 
 
