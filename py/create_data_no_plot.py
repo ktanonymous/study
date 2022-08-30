@@ -145,13 +145,9 @@ def main(input_file: str, period: int):
     # 全ての映画について
     n_movies = len(movies)
     view_data = [np.zeros((n_customers, period)) for _ in range(n_movies)]
-    # n_cols = 4
-    # n_rows = math.ceil(n_movies / n_cols)
-    # fig, ax = plt.subplots(n_rows, n_cols, sharex='col', sharey='row')
     idx = -1
     for movie, data in zip(movies, view_data):
         idx += 1
-        # row, col = divmod(idx, n_cols)
         genre_preference = np.array([
             consumre.genre_preference[movie.genre]
             for consumre in consumers
@@ -177,13 +173,6 @@ def main(input_file: str, period: int):
                 ]
             )
 
-        # title = f"{movie.genre}(promo: {movie.promo_cost:.2f} M$)"
-        # ax[row, col].set_title(title)
-        # ax[row, col].hist(data.sum(axis=1), label='view_data')
-        # ax[row, col].hist(genre_preference, label='preference')
-        # ax[row, col].legend()
-
-    # plt.show()
     return view_data
 
 
