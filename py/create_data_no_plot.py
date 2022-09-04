@@ -1,5 +1,6 @@
 """
 市場っぽいデータを作り出す（市場やアンケート調査などによる正確なデータが手に入れられないため）
+所要時間は 80 秒程度
 自作ライブラリ(dummy_creator)を利用
 映画市場をターゲットとする
 作成対象は以下の通り
@@ -173,7 +174,7 @@ def main(input_file: str, period: int):
                 ]
             )
 
-    return view_data
+    return np.array(view_data), consumers, movies
 
 
 def calc_random_preference(interval: float = 1.0, offset: float = 0.0) -> float:
