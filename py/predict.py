@@ -122,10 +122,6 @@ def check_accuracy(
         view_ids_one_hot = np.eye(period)[view_ids][:, :n_movies+1]
 
         # 公開情報を選好度で上書きし、鑑賞作品 ID を付与する(重複は削除)
-        # preference = np.array([
-        #     consumer.genre_preference[movie.genre]
-        #     for movie in movies
-        # ]).reshape(1, -1)
         preferences_showing = np.multiply(
             is_showings,
             preference
@@ -236,10 +232,6 @@ def _create_table(
         n_label_kinds = len(mask_showing_with_viewed_id)
 
         # 各映画に該当するジャンル選好度をマスクする(size=(label-kinds, n_movies))
-        # genre_preference = np.array([
-        #     consumer.genre_preference[movie.genre]
-        #     for movie in movies
-        # ]).reshape(1, -1)
         genre_preferences_masked = np.multiply(
             mask_showing_with_viewed_id[:, :-1],
             genre_preference.reshape(1, -1),
