@@ -30,14 +30,16 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from dummy_creator import create_dummy as dummy
-from typing import Dict, List, Optional
+from functools import partial
+from typing import Dict, Generator, List, Optional
 
+from aux import get_preferences_all
 from models import Consumer, Movie
 from const import (
     LIKE, DISLIKE, UNCONCERNED,
     DOCUMENTARY, HORROR, FANTASY, ANIME,
     SF, COMEDY, DRAMA, ACTION_ADVENTURE,
-    GENRES,
+    GENRES, BROADCAST_PERIOD,
 )
 
 
@@ -147,34 +149,48 @@ def main(input_file: str, period: int):
     n_movies = len(movies)
     view_data = [np.zeros((n_customers, period)) for _ in range(n_movies)]
     idx = -1
+    label_is_viewed_fiexed = partial(
+        label_is_viewed,
+        period=period,
+        min_promo_cost=min_promo_cost,
+        range_promo_cost=range_promo_cost,
+    )
     for movie, data in zip(movies, view_data):
         idx += 1
-        genre_preference = np.array([
-            consumre.genre_preference[movie.genre]
-            for consumre in consumers
-        ])
 
+        label_is_viewed_fiexed_movie = partial(
+            label_is_viewed_fiexed,
+            movie=movie,
+        )
         for day in range(period):
             not_viewed = np.logical_not(data.sum(axis=1).astype(bool))
             # NOTE: 日付ごとのデータは本当に必要なのか？（モデルの評価には必要だけど。。。）
             consumers_not_viewed = np.array(consumers)[not_viewed]
+            past_view_data = view_data[idx][:, :day]
+            label_is_viewed_fiexed_movie_day = partial(
+                label_is_viewed_fiexed_movie,
+                day=day,
+                past_view_data=past_view_data
+            )
+            labels_generator = gen_label_is_viewed(
+                label_is_viewed_fixed=label_is_viewed_fiexed_movie_day,
+                consumers=consumers_not_viewed
+            )
             data[not_viewed, day] = np.array(
-                [
-                    label_is_viewed(
-                        consumer,
-                        day,
-                        movie.broadcast_day,
-                        period,
-                        movie,
-                        min_promo_cost,
-                        range_promo_cost,
-                        past_view_data=view_data[idx][:, :day]
-                    )
-                    for consumer in consumers_not_viewed
-                ]
+                [label for label in labels_generator]
             )
 
     return np.array(view_data), consumers, movies
+
+
+def gen_label_is_viewed(
+    label_is_viewed_fixed: partial,
+    consumers: List[Consumer],
+) -> Generator[int, None, None]:
+    for consumer in consumers:
+        label = label_is_viewed_fixed(consumer=consumer)
+
+        yield label
 
 
 def calc_random_preference(interval: float = 1.0, offset: float = 0.0) -> float:
@@ -186,7 +202,6 @@ def calc_random_preference(interval: float = 1.0, offset: float = 0.0) -> float:
 def label_is_viewed(
     consumer: Consumer,
     day: int,
-    broadcast_day: int,
     period: int,
     movie: Movie,
     min_promo_cost: int,
@@ -200,8 +215,10 @@ def label_is_viewed(
         probability *= 0.7
 
     # 公開から時間が経つと見にくくなる
+    broadcast_day = movie.broadcast_day
     elapsed_day = day - broadcast_day
-    if elapsed_day < 0:
+    # 公開前及び公開終了後(70日経過後)は
+    if elapsed_day < 0 or elapsed_day > BROADCAST_PERIOD:
         probability = 0
     else:
         probability *= (1 - elapsed_day / (period - broadcast_day)) * 0.9
@@ -225,11 +242,12 @@ def label_is_viewed(
     # if consumer.children_genre == movie.genre:
     #     probability *= 1.3
     # フォローしている人が見ているほど見たくなる
-    n_followee = len(consumer.followee)
-    if n_followee != 0:
-        followee_view_data = past_view_data[consumer.followee, :].sum(axis=1)
-        n_viewed_followee = followee_view_data.sum()
-        probability *= 1 + n_viewed_followee / n_followee
+    # NOTE: 現段階ではスキップ(8/30)
+    # n_followee = len(consumer.followee)
+    # if n_followee != 0:
+    #     followee_view_data = past_view_data[consumer.followee, :].sum(axis=1)
+    #     n_viewed_followee = followee_view_data.sum()
+    #     probability *= 1 + n_viewed_followee / n_followee
 
     # 消費者ごとの属性等を反映して確率が1を超えた場合の調整
     if probability > 1:

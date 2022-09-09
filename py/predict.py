@@ -7,23 +7,25 @@ import time
 
 from collections import defaultdict
 from functools import partial
-from models import Consumer, Movie
-from network import Network
 from statistics import mean
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Flatten
 from typing import List, Generator
 
+from aux import get_preferences_all
 from create_data_no_plot import main as create_data
+from models import Consumer, Movie
+from network import Network
 
 
 def main(period: int = 100):
     dir_name = os.path.dirname(__file__)
     input_file = os.path.normpath(os.path.join(dir_name, '../json/spec.json'))
-    # データ生成(period=100, n_consumers=800): 約 20 ~ 30 sec
+    # データ生成(period=100, n_consumers=800): 約 7 sec
     start = time.time()
     view_data, consumers, movies = create_data(input_file, period)
     n_consumers = len(consumers)
+    genre_preferences_all = get_preferences_all(consumers, movies)
     print(
         f"Time to create data(period: {period}, consumers: {n_consumers}) -> "
         f"{time.time() - start:.1f} sec"
@@ -31,7 +33,7 @@ def main(period: int = 100):
     # テーブル作成(period=100, n_consumers=800): 約 0.5 sec
     start = time.time()
     inputs_consumer, is_showings = create_table(
-        view_data, consumers, movies, period
+        view_data, consumers, movies, period, genre_preferences_all
     )
     print(
         f"Time to create table(period: {period}, consumers: {n_consumers}) -> "
@@ -74,7 +76,8 @@ def main(period: int = 100):
     start = time.time()
     check_accuracy(
         nn, movies, consumers, view_data, is_showings,
-        n_params=n_params
+        n_params=n_params,
+        genre_preferences_all=genre_preferences_all
     )
     print(
         f"Time to check accuracy(period: {period}, consumers: {n_consumers})"
@@ -83,9 +86,15 @@ def main(period: int = 100):
     print(f"\nteaching-data:\n{inputs_consumer[:, -1].astype(int)}")
 
 
-def check_accuracy(model, movies: List[Movie], consumers: List[Consumer],
-                   view_data: np.ndarray, is_showings: np.ndarray,
-                   n_params: int):
+def check_accuracy(
+    model,
+    movies: List[Movie],
+    consumers: List[Consumer],
+    view_data: np.ndarray,
+    is_showings: np.ndarray,
+    n_params: int,
+    genre_preferences_all: np.ndarray
+):
     # パラメータ情報を取得
     n_movies, n_consumers, period = view_data.shape
 
@@ -102,16 +111,21 @@ def check_accuracy(model, movies: List[Movie], consumers: List[Consumer],
     n_misses = 0
     predict_ids = []
     print('consumer_ID: ', end='')
-    for consumer, view_ids in zip(consumers, view_ids_all):
+    iter_check_accuracy = zip(
+        consumers,
+        view_ids_all,
+        genre_preferences_all
+    )
+    for consumer, view_ids, preference in iter_check_accuracy:
         if consumer.id_num % 80 == 0:
             print(consumer.id_num, end=', ', flush=True)
         view_ids_one_hot = np.eye(period)[view_ids][:, :n_movies+1]
 
         # 公開情報を選好度で上書きし、鑑賞作品 ID を付与する(重複は削除)
-        preference = np.array([
-            consumer.genre_preference[movie.genre]
-            for movie in movies
-        ]).reshape(1, -1)
+        # preference = np.array([
+        #     consumer.genre_preference[movie.genre]
+        #     for movie in movies
+        # ]).reshape(1, -1)
         preferences_showing = np.multiply(
             is_showings,
             preference
@@ -167,6 +181,7 @@ def create_table(
     consumers: List[Consumer],
     movies: List[Movie],
     period: int,
+    genre_preferences_all: np.ndarray
 ) -> np.ndarray:
     # 各映画の公開ラベル(size=(period, n_movies))を付与
     INTERVAL_MOVIE = 70
@@ -183,15 +198,17 @@ def create_table(
         arr=view_data.transpose(1, 2, 0),
     )
 
-    _create_table_fixed = partial(
-        _create_table,
+    generator_inputs = _create_table(
+        consumers=consumers,
+        view_ids_all=view_ids_all,
         movies=movies,
         is_showings=is_showings,
+        genre_preferences_all=genre_preferences_all
     )
-    inputs = np.concatenate([
-        inputs_consumer for inputs_consumer
-        in _create_table_fixed(consumers=consumers, view_ids_all=view_ids_all)
-    ], axis=0)
+    inputs = np.concatenate(
+        [inputs_consumer for inputs_consumer in generator_inputs],
+        axis=0
+    )
 
     return inputs, is_showings
 
@@ -201,10 +218,12 @@ def _create_table(
     view_ids_all: np.ndarray,
     movies: List[Movie],
     is_showings: np.ndarray,
+    genre_preferences_all: np.ndarray
 ) -> Generator[np.ndarray, None, None]:
     # 鑑賞状況を踏まえた公開情報ラベルをマスク化する
     # 公開情報ラベルに消費者の鑑賞ラベルを付加する(size=(period, n_movies+1))
-    for consumer, view_ids in zip(consumers, view_ids_all):
+    iter_create_table = zip(consumers, view_ids_all, genre_preferences_all)
+    for consumer, view_ids, genre_preference in iter_create_table:
         is_showings_with_viewed_id = np.concatenate(
             [is_showings, view_ids.reshape(-1, 1)],
             axis=1,
@@ -217,13 +236,13 @@ def _create_table(
         n_label_kinds = len(mask_showing_with_viewed_id)
 
         # 各映画に該当するジャンル選好度をマスクする(size=(label-kinds, n_movies))
-        genre_preference = np.array([
-            consumer.genre_preference[movie.genre]
-            for movie in movies
-        ]).reshape(1, -1)
+        # genre_preference = np.array([
+        #     consumer.genre_preference[movie.genre]
+        #     for movie in movies
+        # ]).reshape(1, -1)
         genre_preferences_masked = np.multiply(
             mask_showing_with_viewed_id[:, :-1],
-            genre_preference,
+            genre_preference.reshape(1, -1),
         )
         genre_preferences_masked_with_viewed_id = np.concatenate(
             [
