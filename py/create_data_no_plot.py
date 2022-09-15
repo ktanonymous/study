@@ -127,7 +127,7 @@ def main(input_file: str, period: int, use_csv: bool = False):
         customer_types = list_customer_types(params=params)
         # 初期鑑賞回数データ
         key = 'n_initial_view'
-        n_initial_views = np.concatenate(params[key]['rows'])
+        n_initial_views = np.concatenate(params[key]['rows']).astype(int)
         # 給料データ
         key = 'salary'
         salaries = np.concatenate(params[key]['rows'])
@@ -154,7 +154,7 @@ def main(input_file: str, period: int, use_csv: bool = False):
         # 映画の基本情報を読み込む
         # 公開日データ
         key = 'broadcast_day'
-        broadcast_days = np.concatenate(params[key]['rows'])
+        broadcast_days = np.concatenate(params[key]['rows']).astype(int)
         # 宣伝費データ
         key = 'promotion_cost'
         # NOTE: models.py では int だが、今だけ型違い
