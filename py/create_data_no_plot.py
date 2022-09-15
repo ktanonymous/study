@@ -19,7 +19,7 @@
         * （消費者カテゴリー）
 """
 
-import math
+import json
 import matplotlib.pyplot as plt
 import numpy as np
 import functools
@@ -31,7 +31,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from dummy_creator import create_dummy as dummy
 from functools import partial
-from typing import Dict, Generator, List, Optional
+from typing import Dict, Generator, List, Optional, Tuple, Union
 
 from aux import get_preferences_all
 from models import Consumer, Movie
@@ -41,98 +41,137 @@ from const import (
     SF, COMEDY, DRAMA, ACTION_ADVENTURE,
     GENRES, BROADCAST_PERIOD,
 )
+from define_params import define_params
 
 
 # TODO: 疑似的なユーザー同士のつながり（情報交換）を生成
 # TODO: -> ランダムにネットワークを形成して followee の鑑賞状況を参照する？
-def main(input_file: str, period: int):
+def main(input_file: str, period: int, use_csv: bool = False):
     # json ファイルを利用してダミーデータを作成
-    input_files = [input_file]
-    keys = dummy(params=None, input_files=input_files)
-    csv_directory = os.path.join(os.path.dirname(__file__), '../csv')
+    if use_csv:
+        input_files = [input_file]
+        dummy(params=None, input_files=input_files)
+        csv_directory = os.path.join(os.path.dirname(__file__), '../csv')
 
-    # 消費者の基本情報を読み込む
-    # NOTE: 性別は未使用（どう使うのか？） -> 一先ず使わない
-    # NOTE: status や business（家庭状況等）はどう反映させるのか
-    # -> 一先ず保留
+        # 消費者の基本情報を読み込む
+        # NOTE: 性別は未使用（どう使うのか？） -> 一先ず使わない
+        # NOTE: status や business（家庭状況等）はどう反映させるのか
+        # -> 一先ず保留
 
-    # 性別データ
-    # file_name = os.path.join(csv_directory, 'gender.csv')
-    # genders = list_genders()
-    # ジャンル選好度データ
-    preferences = list_preferences()
-    # 消費者カテゴリーデータ
-    customer_types = list_customer_types(file_name='customer_type.csv')
-    # 初期鑑賞回数データ
-    file_path = os.path.join(csv_directory, 'n_initial_view.csv')
-    n_initial_views = np.loadtxt(file_path, skiprows=1).astype(int)
-    # 給料データ
-    file_path = os.path.join(csv_directory, 'salary.csv')
-    salaries = np.loadtxt(file_path, skiprows=1)
-    # （保護者同伴となる）子供が好きなジャンル（簡単のために1つのみ）
-    children_genres = list_children_genre(file_name='children_genres.csv')
-    # 映画自体が好きかどうか
-    does_like_movies = list_does_like_movie(file_name='does_like_movie.csv')
-
-    # ID リスト
-    n_customers = len(does_like_movies)
-    consumer_ids = [i for i in range(n_customers)]
-    consumers = [
-        Consumer(
-            id_num=consumer_id,
-            genre_preference=preference,
-            consume_type=customer_type,
-            richness=salary,
-            n_views=n_initial_view,
-            does_like_movie=does_like_movie,
-            children_genre=children_genre,
+        # 性別データ
+        # file_name = os.path.join(csv_directory, 'gender.csv')
+        # genders = list_genders()
+        # ジャンル選好度データ
+        preferences = list_preferences()
+        # 消費者カテゴリーデータ
+        customer_types = list_customer_types(file_name='customer_type.csv')
+        # 初期鑑賞回数データ
+        file_path = os.path.join(csv_directory, 'n_initial_view.csv')
+        n_initial_views = np.loadtxt(file_path, skiprows=1).astype(int)
+        # 給料データ
+        file_path = os.path.join(csv_directory, 'salary.csv')
+        salaries = np.loadtxt(file_path, skiprows=1)
+        # （保護者同伴となる）子供が好きなジャンル（簡単のために1つのみ）
+        children_genres = list_children_genre(file_name='children_genres.csv')
+        # 映画自体が好きかどうか
+        does_like_movies = list_does_like_movie(file_name='does_like_movie.csv')
+        # 消費者リストの取得
+        consumers = get_consumers(
+            preferences=preferences,
+            customer_types=customer_types,
+            n_initial_views=n_initial_views,
+            salaries=salaries,
+            does_like_movies=does_like_movies,
+            children_genres=children_genres
         )
-        for(
-            consumer_id,
-            preference,
-            customer_type,
-            n_initial_view,
-            salary,
-            does_like_movie,
-            children_genre,
-        ) in zip(
-            consumer_ids,
-            preferences,
-            customer_types,
-            n_initial_views,
-            salaries,
-            does_like_movies,
-            children_genres,
-        )
-    ]
-    # 疑似的なユーザー間のつながりを作成
-    follow_each_other(consumers)
 
-    # 映画の基本情報を読み込む
-    # 公開日データ
-    file_path = os.path.join(csv_directory, 'broadcast_day.csv')
-    broadcast_days = np.loadtxt(file_path, skiprows=1).astype(int)
-    # 宣伝費データ
-    file_path = os.path.join(csv_directory, 'promotion_cost.csv')
-    # NOTE: models.py では int だが、今だけ型違い
-    MILLION = 1000000
-    promotion_costs = np.loadtxt(file_path, skiprows=1) / MILLION
-    min_promo_cost = promotion_costs.min()
-    max_promo_cost = promotion_costs.max()
-    range_promo_cost = max_promo_cost - min_promo_cost
-    # ジャンルを生成
-    genre_movies = random.choices(GENRES, k=len(broadcast_days))
+        # 映画の基本情報を読み込む
+        # 公開日データ
+        file_path = os.path.join(csv_directory, 'broadcast_day.csv')
+        broadcast_days = np.loadtxt(file_path, skiprows=1).astype(int)
+        # 宣伝費データ
+        file_path = os.path.join(csv_directory, 'promotion_cost.csv')
+        # NOTE: models.py では int だが、今だけ型違い
+        MILLION = 1_000_000
+        promotion_costs = np.loadtxt(file_path, skiprows=1) / MILLION
+        min_promo_cost = promotion_costs.min()
+        max_promo_cost = promotion_costs.max()
+        range_promo_cost = max_promo_cost - min_promo_cost
+        # ジャンルを生成
+        genre_movies = random.choices(GENRES, k=len(broadcast_days))
 
-    # target （顧客層の狙い）は未実装、どう実装するか
-    movies = [
-        Movie(
-            genre=genre,
-            promo_cost=promo_cost,
-            broadcast_day=broadcast_day,
+        # NOTE* target （顧客層の狙い）は未実装、どう実装するか
+        movies = get_movies(
+            genre_movies=genre_movies,
+            promotion_costs=promotion_costs,
+            broadcast_days=broadcast_days
         )
-        for genre, promo_cost, broadcast_day
-        in zip(genre_movies, promotion_costs, broadcast_days)
-    ]
+
+    # ファイル読み込みをなくして高速化
+    else:
+        with open(input_file) as f:
+            params_conf = json.load(f)
+        params = dummy(params=[params_conf], input_files=None)[0]
+
+        # 消費者の基本情報を読み込む
+        # NOTE: 性別は未使用（どう使うのか？） -> 一先ず使わない
+        # NOTE: status や business（家庭状況等）はどう反映させるのか
+        # -> 一先ず保留
+
+        # 性別データ
+        # file_name = os.path.join(csv_directory, 'gender.csv')
+        # genders = list_genders()
+        # ジャンル選好度データ
+        preferences = list_preferences(params)
+        # 消費者カテゴリーデータ
+        customer_types = list_customer_types(params=params)
+        # 初期鑑賞回数データ
+        key = 'n_initial_view'
+        n_initial_views = np.concatenate(params[key]['rows'])
+        # 給料データ
+        key = 'salary'
+        salaries = np.concatenate(params[key]['rows'])
+        # （保護者同伴となる）子供が好きなジャンル（簡単のために1つのみ）
+        key = 'children_genres'
+        children_genres = np.apply_along_axis(
+            label2value_children_genre,
+            axis=1,
+            arr=params[key]['rows']
+        )
+        # 映画自体が好きかどうか
+        key = 'does_like_movie'
+        does_like_movies = np.array(params[key]['rows'])[:, 1].astype(bool)
+        # 消費者リストの取得
+        consumers = get_consumers(
+            preferences=preferences,
+            customer_types=customer_types,
+            n_initial_views=n_initial_views,
+            salaries=salaries,
+            does_like_movies=does_like_movies,
+            children_genres=children_genres
+        )
+
+        # 映画の基本情報を読み込む
+        # 公開日データ
+        key = 'broadcast_day'
+        broadcast_days = np.concatenate(params[key]['rows'])
+        # 宣伝費データ
+        key = 'promotion_cost'
+        # NOTE: models.py では int だが、今だけ型違い
+        MILLION = 1_000_000
+        promotion_costs = np.concatenate(params[key]['rows']) / MILLION
+        min_promo_cost = promotion_costs.min()
+        max_promo_cost = promotion_costs.max()
+        range_promo_cost = max_promo_cost - min_promo_cost
+        # ジャンルを生成
+        genre_movies = random.choices(GENRES, k=len(broadcast_days))
+
+        # NOTE: target （顧客層の狙い）は未実装、どう実装するか
+        movies = get_movies(
+            genre_movies=genre_movies,
+            promotion_costs=promotion_costs,
+            broadcast_days=broadcast_days
+        )
 
     # 鑑賞ラベルの生成
     # TODO: 鑑賞するかどうかを判定する方法の再確認
@@ -147,7 +186,8 @@ def main(input_file: str, period: int):
 
     # 全ての映画について
     n_movies = len(movies)
-    view_data = [np.zeros((n_customers, period)) for _ in range(n_movies)]
+    n_consumers = len(consumers)
+    view_data = [np.zeros((n_consumers, period)) for _ in range(n_movies)]
     idx = -1
     label_is_viewed_fiexed = partial(
         label_is_viewed,
@@ -269,16 +309,27 @@ def label_is_viewed(
     return label
 
 
-def list_preferences() -> List[Dict[str, float]]:
-    """csv の選好度ラベルデータを数値に変換する
+def list_preferences(params=None) -> List[Dict[str, float]]:
+    """選好度ラベルデータを数値に変換する
     """
-    directory = os.path.dirname(__file__)
-    csv_directory = os.path.join(directory, '../csv')
+    if params:
+        label2value_preference_apply = partial(
+            np.apply_along_axis,
+            func1d=lambda vec: label2value_preference(vec),
+            axis=1
+        )
+        preferences_dict = {
+            genre: label2value_preference_apply(arr=rows2arr(params, genre))
+            for genre in GENRES
+        }
+    else:
+        directory = os.path.dirname(__file__)
+        csv_directory = os.path.join(directory, '../csv')
 
-    preferences_dict = {
-        genre: _list_preferences(genre, directory=csv_directory)
-        for genre in GENRES
-    }
+        preferences_dict = {
+            genre: _list_preferences(genre, directory=csv_directory)
+            for genre in GENRES
+        }
 
     n_consumers = len(list(preferences_dict.values())[0])
     preferences = [
@@ -320,13 +371,21 @@ def label2value_preference(label: pd.core.series.Series) -> float:
     return value
 
 
-def list_customer_types(file_name: str) -> List[str]:
-    directory = os.path.dirname(__file__)
-    csv_directory = os.path.join(directory, '../csv')
-    file_path = os.path.join(csv_directory, file_name)
+def rows2arr(obj: List[Tuple[str, int]], genre: str) -> np.ndarray:
+    genre_key = genre + '_preference'
+    return np.array(obj[genre_key]['rows'])
 
-    labels = pd.read_csv(file_path, delimiter=',')
-    customer_types = labels.apply(label2value_customer_type, axis=1)
+
+def list_customer_types(file_name: str = None, params=None) -> List[str]:
+    if params:
+        customer_types = np.array(params['customer_type']['rows'])[:, 0]
+    else:
+        directory = os.path.dirname(__file__)
+        csv_directory = os.path.join(directory, '../csv')
+        file_path = os.path.join(csv_directory, file_name)
+
+        labels = pd.read_csv(file_path, delimiter=',')
+        customer_types = labels.apply(label2value_customer_type, axis=1)
 
     return list(customer_types)
 
@@ -384,6 +443,52 @@ def label2value(label: pd.core.series.Series) -> list:
     return
 
 
+def get_consumers(
+    preferences,
+    customer_types,
+    n_initial_views,
+    salaries,
+    does_like_movies,
+    children_genres
+) -> List[Consumer]:
+    # ID リスト
+    n_consumers = len(does_like_movies)
+    consumer_ids = [i for i in range(n_consumers)]
+    consumers = [
+        Consumer(
+            id_num=consumer_id,
+            genre_preference=preference,
+            consume_type=customer_type,
+            richness=salary,
+            n_views=n_initial_view,
+            does_like_movie=does_like_movie,
+            children_genre=children_genre,
+        )
+        for(
+            consumer_id,
+            preference,
+            customer_type,
+            n_initial_view,
+            salary,
+            does_like_movie,
+            children_genre,
+        ) in zip(
+            consumer_ids,
+            preferences,
+            customer_types,
+            n_initial_views,
+            salaries,
+            does_like_movies,
+            children_genres,
+        )
+    ]
+
+    # 疑似的なユーザー間のつながりを作成
+    follow_each_other(consumers)
+
+    return consumers
+
+
 def follow_each_other(users: List[Consumer]) -> None:
     """ユーザー同士のつながりを作成
     """
@@ -408,6 +513,24 @@ def _follow_each_other(user, min_followee, max_followee) -> None:
 
     user.followee = followee
     return
+
+
+def get_movies(
+    genre_movies,
+    promotion_costs,
+    broadcast_days
+) -> List[Movie]:
+    movies = [
+        Movie(
+            genre=genre,
+            promo_cost=promo_cost,
+            broadcast_day=broadcast_day,
+        )
+        for genre, promo_cost, broadcast_day
+        in zip(genre_movies, promotion_costs, broadcast_days)
+    ]
+
+    return movies
 
 
 if __name__ == '__main__':
