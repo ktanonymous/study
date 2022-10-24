@@ -41,7 +41,6 @@ from const import (
     SF, COMEDY, DRAMA, ACTION_ADVENTURE,
     GENRES, BROADCAST_PERIOD,
 )
-from define_params import define_params
 
 
 # TODO: 疑似的なユーザー同士のつながり（情報交換）を生成
