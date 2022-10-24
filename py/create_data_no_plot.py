@@ -130,7 +130,10 @@ def main(input_file: str, period: int, use_csv: bool = False):
         n_initial_views = np.concatenate(params[key]['rows']).astype(int)
         # 給料データ
         key = 'salary'
-        salaries = np.concatenate(params[key]['rows'])
+        salaries = np.concatenate(params[key]['rows']).astype(int)
+        min_salary = salaries.min()
+        max_salary = salaries.max()
+        range_salary = max_salary - min_salary
         # （保護者同伴となる）子供が好きなジャンル（簡単のために1つのみ）
         key = 'children_genres'
         children_genres = np.apply_along_axis(
@@ -159,12 +162,16 @@ def main(input_file: str, period: int, use_csv: bool = False):
         key = 'promotion_cost'
         # NOTE: models.py では int だが、今だけ型違い
         MILLION = 1_000_000
-        promotion_costs = np.concatenate(params[key]['rows']) / MILLION
+        promotion_costs = np.concatenate(
+            params[key]['rows']
+        ).astype(int) / MILLION
         min_promo_cost = promotion_costs.min()
         max_promo_cost = promotion_costs.max()
         range_promo_cost = max_promo_cost - min_promo_cost
         # ジャンルを生成
-        genre_movies = random.choices(GENRES, k=len(broadcast_days))
+        # genre_movies = random.choices(GENRES, k=len(broadcast_days))
+        # 1 ジャンル 1 映画のパターン用
+        genre_movies = GENRES
 
         # NOTE: target （顧客層の狙い）は未実装、どう実装するか
         movies = get_movies(
@@ -194,6 +201,8 @@ def main(input_file: str, period: int, use_csv: bool = False):
         period=period,
         min_promo_cost=min_promo_cost,
         range_promo_cost=range_promo_cost,
+        min_salary=min_salary,
+        range_salary=range_salary
     )
     for movie, data in zip(movies, view_data):
         idx += 1
@@ -246,6 +255,8 @@ def label_is_viewed(
     movie: Movie,
     min_promo_cost: int,
     range_promo_cost: int,
+    min_salary: int,
+    range_salary: int,
     past_view_data: np.ndarray,
 ) -> int:
     probability = random.random()
@@ -261,7 +272,8 @@ def label_is_viewed(
     if elapsed_day < 0 or elapsed_day > BROADCAST_PERIOD:
         probability = 0
     else:
-        probability *= (1 - elapsed_day / (period - broadcast_day)) * 0.9
+        # probability *= (1 - elapsed_day / (period - broadcast_day)) * 0.9
+        probability *= (1 - elapsed_day / BROADCAST_PERIOD) * 0.9
 
     # 作品ごとの属性による確率の範囲
     assert 0 <= probability <= 1, 'invalid probability'
@@ -272,6 +284,12 @@ def label_is_viewed(
     # NOTE: あまり効果がハッキリしない（是非は不明）
     promo_cost_level = (movie.promo_cost - min_promo_cost) / range_promo_cost
     probability *= 1 + promo_cost_level
+
+    # 収入が高いほど観客が増えやすい
+    # 全消費者の収入のレンジに対して、
+    # 各消費者の収入が最低額よりどの程度高いかに応じて倍率を計上する
+    salary_level = (consumer.richness - min_salary) / range_salary
+    probability *= 1 + salary_level
 
     # 好きなジャンルほどよく見る
     genre_preference: float = consumer.genre_preference[movie.genre]

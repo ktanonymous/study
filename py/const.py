@@ -40,3 +40,6 @@ UNCONCERNED = 'unconcerned'
 
 # 作品の公開期間
 BROADCAST_PERIOD = 70
+
+# クロスバリデーションの分割数
+N_FOLDS = 3
