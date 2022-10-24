@@ -10,3 +10,7 @@
 
 # py フォルダの中のキャッシュファイルは無視
 /py/__pycache__
+
+# ipynb は無視
+/py/*.ipynb
+/py/.ipynb_checkpoints
