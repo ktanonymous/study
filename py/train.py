@@ -6,22 +6,16 @@ import os
 import tensorflow as tf
 import time
 
-from collections import defaultdict
 from copy import deepcopy
-from functools import partial
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from statistics import mean
 from tensorflow.keras import Sequential
 from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.layers import Dense, Dropout, Flatten
-from tensorflow.math import confusion_matrix
-from tensorflow.keras.metrics import Precision, Recall
 from typing import List, Generator, NamedTuple, Tuple
 
-from aux import build_model, get_preferences_all, params2labels
-from const import N_FOLDS
-from create_data_no_plot import main as create_data
-from models import Consumer, Movie
+from .aux import build_model, get_preferences_all, params2labels
+from .const import N_FOLDS
+from .create_data_no_plot import main as create_data
+from .models import Consumer, Movie
 
 
 class TrainingObject(NamedTuple):

@@ -33,9 +33,9 @@ from dummy_creator import create_dummy as dummy
 from functools import partial
 from typing import Dict, Generator, List, Optional, Tuple, Union
 
-from aux import get_preferences_all
-from models import Consumer, Movie
-from const import (
+from .aux import get_preferences_all
+from .models import Consumer, Movie
+from .const import (
     LIKE, DISLIKE, UNCONCERNED,
     DOCUMENTARY, HORROR, FANTASY, ANIME,
     SF, COMEDY, DRAMA, ACTION_ADVENTURE,

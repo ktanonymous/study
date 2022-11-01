@@ -6,7 +6,7 @@ from tensorflow.keras.layers import Dense, Dropout, Flatten
 from tensorflow.keras.metrics import Precision, Recall
 from typing import List, Tuple
 
-from models import Consumer, Movie
+from .models import Consumer, Movie
 
 
 def get_preferences_all(
