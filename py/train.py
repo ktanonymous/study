@@ -22,7 +22,6 @@ from aux import build_model, get_preferences_all, params2labels
 from const import N_FOLDS
 from create_data_no_plot import main as create_data
 from models import Consumer, Movie
-from network import Network
 
 
 class TrainingObject(NamedTuple):
