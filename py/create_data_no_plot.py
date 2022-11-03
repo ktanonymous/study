@@ -45,7 +45,12 @@ from .const import (
 
 # TODO: 疑似的なユーザー同士のつながり（情報交換）を生成
 # TODO: -> ランダムにネットワークを形成して followee の鑑賞状況を参照する？
-def main(input_file: str, period: int, use_csv: bool = False):
+def main(
+    input_file: str,
+    period: int,
+    use_csv: bool = False,
+    genre_movies: List[str] = None
+):
     # json ファイルを利用してダミーデータを作成
     if use_csv:
         input_files = [input_file]
@@ -168,9 +173,8 @@ def main(input_file: str, period: int, use_csv: bool = False):
         max_promo_cost = promotion_costs.max()
         range_promo_cost = max_promo_cost - min_promo_cost
         # ジャンルを生成
-        # genre_movies = random.choices(GENRES, k=len(broadcast_days))
-        # 1 ジャンル 1 映画のパターン用
-        genre_movies = GENRES
+        if genre_movies is None:
+            genre_movies = random.choices(GENRES, k=len(broadcast_days))
 
         # NOTE: target （顧客層の狙い）は未実装、どう実装するか
         movies = get_movies(

@@ -37,7 +37,8 @@ def main(
     use_csv: bool = False,
     input_file: str = None,
     show_history: bool = False,
-    show_time: bool = False
+    show_time: bool = False,
+    genre_movies: List[str] = None
 ) -> Tuple[np.ndarray, np.ndarray, List[int], tf.Tensor]:
     if input_file is None:
         dir_name = os.path.dirname(__file__)
@@ -47,7 +48,9 @@ def main(
     # データ生成(period=100, n_consumers=800): 約 5 ~ 8 sec
     # データ生成(period=400, n_consumers=800): 約 14 ~ 20 sec
     start = time.time()
-    view_data, consumers, movies = create_data(input_file, period, use_csv)
+    view_data, consumers, movies = create_data(
+        input_file, period, use_csv, genre_movies
+    )
     elapsed_time = time.time() - start
     n_consumers = len(consumers)
     genre_preferences_all = get_preferences_all(consumers, movies)

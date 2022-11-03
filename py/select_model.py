@@ -1,7 +1,7 @@
 import numpy as np
 
 from tensorflow.keras import Sequential
-from typing import NamedTuple, Tuple
+from typing import List, NamedTuple, Tuple
 
 from train import main as _train
 
@@ -13,14 +13,16 @@ def main(
     show_history: bool = False,
     show_time: bool = False,
     save_model: bool = True,
-    save_file: str = None
+    save_file: str = None,
+    genre_movies: List[str] = None
 ) -> Tuple[NamedTuple, Sequential]:
     training_obj = _train(
         period=period,
         use_csv=use_csv,
         input_file=input_file,
         show_history=show_history,
-        show_time=show_time
+        show_time=show_time,
+        genre_movies=genre_movies
     )
 
     # モデルのテスト及び最高精度のモデル選択
