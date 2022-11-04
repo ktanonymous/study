@@ -8,6 +8,7 @@
 !/json/
 !/py/
 !/spec/
+!/*.py
 
 # py フォルダの中のキャッシュファイルは無視
 /py/__pycache__
