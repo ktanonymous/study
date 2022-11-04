@@ -3,7 +3,7 @@ import numpy as np
 from tensorflow.keras import Sequential
 from typing import List, NamedTuple, Tuple
 
-from train import main as _train
+from .train import main as _train
 
 
 def main(
