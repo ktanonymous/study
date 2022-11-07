@@ -31,7 +31,7 @@ period = int(simu_info['period'])
 # genre_movies_id = np.loadtxt(file_genre_id, delimiter=',', dtype=int)
 # genre_movies = [ID_GENRE[genre_id] for genre_id in genre_movies_id]
 # 各ジャンルを同数にする場合
-genres = list(ID_GENRE.keys())
+genres = list(ID_GENRE.values())
 genre_movies = genres + random.choices(genres, k=10)
 
 # 学習実行
