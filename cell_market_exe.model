@@ -24,7 +24,6 @@ UNIVERSE {
             Dim viewStep(0, 0)[18][18] As Integer = (324*0);
         }
         AgtType follower(0, 0)[0] {
-            Dim viewNum(0, 0) As Integer = (0);
             Dim ID(0, 0) As Integer = (0);
             Dim X(0, 0) As Double = (0.0);
             Dim Y(0, 0) As Double = (0.0);
@@ -40,10 +39,10 @@ UNIVERSE {
             Dim wCriticism(0, 0)[18] As Integer = (18*0);
             Dim viewStep(0, 0)[18][18] As Integer = (324*0);
             Dim infoThreshold(0, 0) As Double = (0.0);
+            Dim viewNum(0, 0) As Integer = (0);
             Dim Utility(0, 0)[18] As Double = (18*0.0);
             Dim max_info_movie(0, 0) As Integer = (0);
             Dim initialViewNum(0, 0) As Integer = (0);
-            Dim viewProbs(0, 0)[400][18] As Double = ();
         }
     }
     Dim maxInitialViewNum(0, 0) As Integer = (0);
@@ -73,7 +72,6 @@ UNIVERSE {
             Dim Utility(0, 0)[18] As Double = (18*0.0);
             Dim max_info_movie(0, 0) As Integer = (0);
             Dim initialViewNum(0, 0) As Integer = (0);
-            Dim viewProbs(0, 0)[400][18] As Double = ();
         }
     }
     AgtType movie(0, 0)[0] {
@@ -103,8 +101,8 @@ UNIVERSE {
 //-------------------------------------------------------
 Initial_Value {
     UNIVERSE.MAXINITIALVIEWNUM = 1(0);
-    UNIVERSE.USER_RATIO = 1(0.2);
-    UNIVERSE.FOLLOWER_RATIO = 1(0.2);
+    UNIVERSE.USER_RATIO = 1(0.16);
+    UNIVERSE.FOLLOWER_RATIO = 1(0.24);
     UNIVERSE.CONSUMER_RATIO = 1(0.6);
     UNIVERSE.NUM_AGENT = 1(1000);
     UNIVERSE.GENRERATIO = 1(0.2, 0.27, 0.43, 0.45, 0.48, 0.6, 0.61, 0.69);
@@ -217,16 +215,12 @@ Univ_Init{
 	
 	
 	// 消費者を生成
-	OpenFileCSV("data/genre_preferences.csv", 1, 1)
-	OpenFileCSV("data/category_thresholds.csv", 2, 1)
-	OpenFileCSV("data/effectiveness.csv", 3, 1)
-	OpenFileCSV("data/initial_views.csv", 4, 1)
 	// ネットフォロワーエージェントを生成
 	num_netfollower = Round(Universe.num_agent * Universe.follower_ratio)
 	For i=0 to num_netfollower-1
 		one = CreateAgt(Universe.Internet.follower)
 		one.IDNo = i // エージェントに識別番号を付与する
-		getParams(one, movies, 8, 1, 2, 3, 4, num_netfollower, False)
+		getParams(one, movies, 8)
 	Next i
 	MakeAgtset(netfollower, Universe.Internet.follower)
 	RandomPutAgtSetCell(netfollower, True)
@@ -237,14 +231,10 @@ Univ_Init{
 	For i=0 to num_consumer-1
 		one = CreateAgt(Universe.Social.consumer)
 		one.IDNo = i // エージェントに識別番号を付与する
-		getParams(one, movies, 8, 1, 2, 3, 4, num_netfollower, True)
+		getParams(one, movies, 8)
 	Next i
 	MakeAgtsetSpace(consumer, Universe.Social)
 	RandomPutAgtSetCell(consumer, True)
-
-	For i = 1 To 4
-	 CloseFileCSV(i)
-	Next i
 
 	PrintLn("Max initial view number : " & Universe.maxInitialViewNum)
 	
@@ -602,10 +592,10 @@ Map_Output {
     Title = "Internet";
     Disable = No;
     Background_Color = 255, 255, 255;
-    Position_x = 0;
-    Position_y = 550;
-    Size_x = 1440;
-    Size_y = 275;
+    Position_x = 720;
+    Position_y = 618;
+    Size_x = 720;
+    Size_y = 206;
     Map_Cell_Size = 5;
     Remarks = Yes;
     Legend_Pos = Top;
@@ -1070,7 +1060,7 @@ Control_Panel {
         Font_Color = 0, 0, 0;
         Font_Background_Color = 0, 0, 0;
         Var_Name = "Universe.user_ratio";
-        Text_Data = "0.2";
+        Text_Data = "0.16";
     }
     Panel_Item {
         Item_Type = Edit_Box;
@@ -1083,7 +1073,7 @@ Control_Panel {
         Font_Color = 0, 0, 0;
         Font_Background_Color = 0, 0, 0;
         Var_Name = "Universe.follower_ratio";
-        Text_Data = "0.2";
+        Text_Data = "0.24";
     }
     Panel_Item {
         Item_Type = Edit_Box;
@@ -1186,13 +1176,13 @@ Others_Data {
     Debug_Size_x = 400;
     Debug_Size_y = 200;
     Console_Position_x = 0;
-    Console_Position_y = 0;
-    Console_Size_x = 300;
-    Console_Size_y = 250;
+    Console_Position_y = 550;
+    Console_Size_x = 720;
+    Console_Size_y = 275;
     Componen_Tree_Position_x = 0;
-    Componen_Tree_Position_y = 0;
-    Componen_Tree_Size_x = 1440;
-    Componen_Tree_Size_y = 413;
+    Componen_Tree_Position_y = 275;
+    Componen_Tree_Size_x = 720;
+    Componen_Tree_Size_y = 275;
     Console_Background_Color = 16777215;
     Console_Foreground_Color = 255;
     Console_DisplayLines_Max = 500;
@@ -1285,12 +1275,12 @@ Model_Description {
         }
     }
     Agent Universe.Internet.follower {
-        Variable viewNum = "映画の鑑賞回数";
         Variable W_g = "weight of if an agent like the genre ";
         Variable wGreed = "満足度入手回数に応じた重み\nm2";
         Variable wCriticism = "批評値取得回数に応じた重み\nm3";
         Variable viewStep = "viewStep(a, 0)鑑賞回数\nviewStep(a, 1)観賞後の経過時間";
         Variable infoThreshold = "情報量の鑑賞閾値";
+        Variable viewNum = "映画の鑑賞回数";
         Variable Utility = "鑑賞効用値";
         Function Agt_Init {
         }

@@ -16,32 +16,21 @@ Sub writeEnvInfo(){
     CloseFileCSV(1)
 }
 
-// ニューラルネットによる鑑賞確率予測を読み込む
-Sub PredictViewProbs(self AS Agt, numMovies As Integer, num_netfollower As Integer, isConsumer As Boolean) {
-    Dim day As Integer, movieID As Integer, csvID As Integer
-
-    csvID = self.IDNo
-    If isConsumer Then
-        csvID = self.IDNo + num_netfollower
-    End If
-    OpenFileCSV("data/view_probs/consumer_" & csvID & ".csv", 5, 1)
-
-    For day = 0 To Universe.period - 1
-        For movieID = 0 To numMovies - 1
-            self.viewProbs(day, movieID) = CDbl(ReadFileCSV(5))
-        Next movieID
-    Next day
-
-    CloseFileCSV(5)
+// 消費者カテゴリー取得する
+Function getCategoryThreshold(rand As Double) As Double {
+    If rand < 0.16 Then  // 16% が初期採用消費者
+        return Rnd() * 50 + 940
+    Elseif rand < 0.50 Then  // 34% が前期採用消費者
+        return Rnd() * 50 + 990
+    Elseif rand < 0.84 Then  // 34% が後期採用消費者
+        return Rnd() * 100 + 1500
+    Else  // 16% が採用遅滞消費者
+        return Rnd() * 100 + 2100
+    End if
 }
 
 // 消費者の作品ごとのパラメータを取得する
-Sub getParams(
-    self As Agt, movies As Agtset, num_genre As Integer,
-    csvPreference As Integer, csvCategoryThreshold As Integer,
-    csvEffectiveness As Integer, csvInitialView As Integer,
-    num_netfollower As Integer, isConsumer As Boolean
-) {
+Sub getParams(self As Agt, movies As Agtset, num_genre As Integer) {
     Dim movie As Agt
     Dim norm As Double, mu As Double, sigma As Double
 
@@ -58,16 +47,20 @@ Sub getParams(
     // 消費者(follower, consumer)の情報電探つ範囲は周囲1近傍(3*3 セルの正方形内)
     self.transmission_range = 1
     // ジャンルごとの選好度を決定する
-    getGenreWeight(self, num_genre, csvPreference)
+    getGenreWeight(self, num_genre)
     // 商品の採用時期による消費者集団の分類に応じて閾値を決定(最終的な鑑賞閾値決定に使用)
-    self.categoryThreshold = CDbl(ReadFileCSV(csvCategoryThreshold))
+    self.categoryThreshold = getCategoryThreshold(Rnd())
     // 消費者の被影響性を決定
-    self.effectiveness = CDbl(ReadFileCSV(csvEffectiveness))
+    self.effectiveness = Rnd() + 0.7
     // 映画鑑賞回数の初期化
+    // self.viewNum = 0
     // 映画鑑賞回数の初期化、対数正規分布(https://sci-fx.net/math-log-norm-dist/)を利用するパターン
     // 対数正規分布のピーク(最頻値)は exp(mu - sigma ^ 2) となるらしい
     // 対数正規分布の累積分布関数の値が 1/2 となるときが中央値になる定義で、その値は exp(mu) になるらしい
-    norm = CDbl(ReadFileCSV(csvInitialView))
+    mu = Log(Universe.medianDist)
+    sigma = Sqr(mu - Log(Universe.modeDist))
+    norm = Exp(NormInv(Rnd(), mu, sigma))  // NormInv は「逆関数法」というものを利用しているらしい
+    norm = Int(norm)
     self.viewNum = norm
     self.initialViewNum = norm
     If Universe.maxInitialViewNum < norm Then
@@ -76,18 +69,22 @@ Sub getParams(
     // PrintLn(self.viewNum)
     // 未鑑賞かつ情報量最大の作品IDを初期化
     self.max_info_movie = 0
-
-    // ニューラルネットによる鑑賞確率予測を読み込む
-    PredictViewProbs(self, 18, num_netfollower, isConsumer)
 }
 
 // ジャンルごとの選好度を取得する
-Sub getGenreWeight(self As Agt, num_genre As Integer, csv As Integer){
+Sub getGenreWeight(self As Agt, num_genre As Integer){
     Dim i As Integer
     Dim rand As Double
 
     For i=0 To num_genre-1
-        self.W_g(i) = CDbl(ReadFileCSV(csv))
+        rand = Rnd()
+        If rand < Universe.genreRatio(i) Then  // ジャンル選好割合に応じて重み付けを行う
+            self.W_g(i) = 1
+        Elseif rand > 0.9 Then  // 10% がジャンルを嫌う
+            self.W_g(i) = 0
+        Else  // ジャンルの選好度「普通」の場合は 区間(0.1, 0.9) から選ばれる
+            self.W_g(i) = Rnd() * 0.8 + 0.1
+        End if
     Next i
 }
 
@@ -149,9 +146,13 @@ Function getInformationFromReal(self As Agt, movie As Agt, info As Double, rand 
 Sub functionAgtStep(self As Agt, movies As Agtset, neighbors As Agtset, followers As Agtset, date As Integer, isFollower As Boolean){
     Dim movie As Agt, one As Agt
     Dim info As Double, rand As Double
+    Dim viewProbs(18) As Double
 
     // 鑑賞閾値は映画の鑑賞回数に応じて減衰する(sigma = 0.99)
     self.infoThreshold = self.categoryThreshold  / (0.99 ^ self.viewNum)
+
+    // ニューラルネットによる鑑賞確率予測
+    viewProbs = PredictViewProb(self, movies, date)  // 非対応(rand -> viewProbs(movie) に置換予定)
 
     // 鑑賞意思決定
     For Each movie in movies
@@ -161,9 +162,7 @@ Sub functionAgtStep(self As Agt, movies As Agtset, neighbors As Agtset, follower
             // 鑑賞済みの作品についても情報受信は行わない
         Else
             info = 0  // 情報受信量の初期化
-            // rand = Rnd()  // その日の乱数を確定する
-            // ニューラルネットによる鑑賞確率予測を確立乱数値とする
-            rand = self.viewProbs(date - 1, movie.IDNo)
+            rand = Rnd()  // その日の乱数を確定する
             // 宣伝に接触するかどうかを判定
             If rand < movie.promProb Then
                 info = info + movie.promotion  // 宣伝情報量を追加
@@ -211,4 +210,63 @@ Sub functionAgtStep(self As Agt, movies As Agtset, neighbors As Agtset, follower
 
     //// ランダムに移動
     //ForwardDirectionCell(Int(Rnd() * 8), 1)
+}
+
+// ニューラルネットワークを学習させる
+Sub LearnNeuralNetwork(exePath As String, synchronous As Boolean) {
+    PrintLn("Neural-Network is learning now...")
+    Shell(exePath, synchronous)
+    PrintLn("Learning is done!!")
+}
+
+// 鑑賞確率予測を実施する
+Function PredictViewProb(self As Agt, movies As AgtSet, date As Integer) As Double {
+    Dim viewProbs(18) As Double
+
+    WriteInputs(self, movies, date)
+    shell("/Users/kota/Desktop/lab/study/exe/simu_predict", True)
+    viewProbs = ReadViewProb()
+
+    return viewProbs
+}
+
+// 消費者の鑑賞確率予測に必要な入力値をファイルに書き込む
+Sub WriteInputs(self As Agt, movies As AgtSet, date As Integer){
+    Dim countMovie As Integer
+    Dim breakLine As Boolean
+
+    OpenFileCSV("csv/simulation/input.csv", 1, 2)
+
+    countMovie = 0
+    WriteFileCSV(1, self.initialViewNum / Universe.maxInitialViewNum, False)  // 属性値の記述
+    For Each movie in movies
+        countMovie = countMovie + 1
+        breakLine = countMovie == 18
+        WriteFileCSV(1, self.W_g(movie.genre-1) * IsShowing(movie, date), breakLine)
+    Next movie
+
+    CloseFileCSV(1)
+}
+
+// 映画が公開済みかどうかをチェックする
+Function IsShowing(movie As Agt, date As Integer) As Integer{
+    return CInt(date >= movie.startDate)
+}
+
+// 鑑賞確率予測値を読み込む
+Function ReadViewProb() As Double {
+    Dim viewProbs(18) As Double
+    Dim movieID As Integer
+
+    OpenFileCSV("csv/simulation/output.csv", 1, 1)
+
+    movieID = 0
+    Do While movieID < 18
+        viewProbs(movieID) = CDbl(ReadFileCsv(1))
+        movieID = movieID + 1
+    Loop
+
+    CloseFileCSV(1)
+
+    return viewProbs
 }
