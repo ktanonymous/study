@@ -168,7 +168,7 @@ def save_train_history(obj: NamedTuple, work_dir: str):
         all_train=obj.all_train_acc,
         all_val=obj.all_val_acc,
         var_name='Accuracy',
-        save_file=work_dir + '/figure/accuracy.png'
+        save_file=work_dir + '/figure/accuracy.png',
     )
 
 
@@ -177,11 +177,12 @@ def _plot_history(
     all_train: List[List[float]],
     all_val: List[List[float]],
     var_name: str,
-    save_file: str
+    save_file: str,
 ):
+    plt.figure()
     plt.title(f"{var_name} of each model")
-    epochs = (len(all_train[0]) // 100 + 1) * 100
-    plt.xlim(0, epochs)
+    epochs = math.ceil(len(all_train[0]) / 100) * 100
+    plt.xlim(0, epochs+1)
     plt.grid()
     plt.xlabel('Epoch')
     plt.ylabel(var_name)
