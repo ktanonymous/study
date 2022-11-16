@@ -7,6 +7,7 @@ import tensorflow as tf
 import time
 
 from copy import deepcopy
+from functools import partial
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from tensorflow.keras import Sequential
 from tensorflow.keras.callbacks import EarlyStopping
@@ -63,8 +64,10 @@ def main(
     # テーブル作成(period=100, n_consumers=800): 約 0.5 sec
     # テーブル作成(period=400, n_consumers=800): 約 2 sec
     # 鑑賞作品 ID (size=(n_consumers, period))
+    n_movies = len(movies)
+    _binary2id = partial(binary2id, n_movies=n_movies)
     view_ids_all = np.apply_along_axis(
-        func1d=np.argmax,
+        func1d=_binary2id,
         axis=2,
         arr=view_data.transpose(1, 2, 0),
     )
@@ -79,7 +82,6 @@ def main(
             f"consumers: {n_consumers}) -> "
             f"{time.time() - start:.1f} sec"
         )
-    n_movies = len(movies)
     n_params = inputs_consumer[:, :-(n_movies+1)].shape[-1]
 
     # パラメータのカテゴリカライズ
@@ -268,6 +270,13 @@ def get_params(consumer: Consumer) -> np.ndarray:
 
 def remove_duplicate_rows(array: np.ndarray) -> np.ndarray:
     return np.unique(array, axis=0)
+
+
+def binary2id(array: np.ndarray, n_movies: int) -> int:
+    viewed_movie = array.any()
+    view_id = np.argmax(array) if viewed_movie else n_movies
+
+    return view_id
 
 
 if __name__ == '__main__':
