@@ -31,6 +31,9 @@ class TrainingObject(NamedTuple):
     all_train_acc: List[List[float]]
     all_val_acc: List[List[float]]
     all_pred_ids: np.ndarray
+    view_data: np.ndarray
+    movies: List[Movie]
+    consumers: List[Consumer]
 
 
 def main(
@@ -174,7 +177,10 @@ def main(
         all_val_loss=all_val_loss,
         all_train_acc=all_train_acc,
         all_val_acc=all_val_acc,
-        all_pred_ids=all_pred_ids
+        all_pred_ids=all_pred_ids,
+        view_data=view_data,
+        movies=movies,
+        consumers=consumers
     )
 
 
