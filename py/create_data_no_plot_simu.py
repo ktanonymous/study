@@ -319,7 +319,7 @@ def label_is_viewed(
         probability *= 0.2
 
     # 映画を何度も見ていると見にくくなる
-    probability *= (1 / 0.99) ** consumer.n_views
+    probability *= 0.99 ** consumer.n_views
 
     if probability > 1 - genre_preference:
         label = 1
