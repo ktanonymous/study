@@ -9,6 +9,7 @@
 !/py/
 !/spec/
 !/*.py
+!/artisoc/
 
 # py フォルダの中のキャッシュファイルは無視
 /py/__pycache__
