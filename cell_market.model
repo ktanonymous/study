@@ -24,12 +24,12 @@ UNIVERSE {
             Dim viewStep(0, 0)[18][18] As Integer = (324*0);
         }
         AgtType follower(0, 0)[0] {
-            Dim viewNum(0, 0) As Integer = (0);
             Dim ID(0, 0) As Integer = (0);
             Dim X(0, 0) As Double = (0.0);
             Dim Y(0, 0) As Double = (0.0);
             Dim Layer(0, 0) As Integer = (0);
             Dim Direction(0, 0) As Double = (0.0);
+            Dim viewNum(0, 0) As Integer = (0);
             Dim transmission_range(0, 0) As Integer = (0);
             Dim Info(0, 0) <2> [18] As Double = (18*0.0);
             Dim IDNo(0, 0) As Integer = (0);
@@ -43,7 +43,9 @@ UNIVERSE {
             Dim Utility(0, 0)[18] As Double = (18*0.0);
             Dim max_info_movie(0, 0) As Integer = (0);
             Dim initialViewNum(0, 0) As Integer = (0);
-            Dim viewProbs(0, 0)[400][18] As Double = ();
+            Dim viewProbs(0, 0)[400][18] As Double = (7200*0.0);
+            Dim categoryDelta(0, 0) As Double = ();
+            Dim categoryGamma(0, 0) As Double = ();
         }
     }
     Dim maxInitialViewNum(0, 0) As Integer = (0);
@@ -73,7 +75,9 @@ UNIVERSE {
             Dim Utility(0, 0)[18] As Double = (18*0.0);
             Dim max_info_movie(0, 0) As Integer = (0);
             Dim initialViewNum(0, 0) As Integer = (0);
-            Dim viewProbs(0, 0)[400][18] As Double = ();
+            Dim viewProbs(0, 0)[400][18] As Double = (7200*0.0);
+            Dim categoryDelta(0, 0) As Double = ();
+            Dim categoryGamma(0, 0) As Double = ();
         }
     }
     AgtType movie(0, 0)[0] {
@@ -108,7 +112,7 @@ Initial_Value {
     UNIVERSE.CONSUMER_RATIO = 1(0.6);
     UNIVERSE.NUM_AGENT = 1(1000);
     UNIVERSE.GENRERATIO = 1(0.2, 0.27, 0.43, 0.45, 0.48, 0.6, 0.61, 0.69);
-    UNIVERSE.SERIES = 1(1);
+    UNIVERSE.SERIES = 1(5);
     UNIVERSE.PERIOD = 1(400);
     UNIVERSE.MODEDIST = 1(8);
     UNIVERSE.MEDIANDIST = 1(9);
@@ -577,7 +581,7 @@ Single_Simulation {
 Repeat_Simulation {
     Value_Change = None;
     Initial_Value_Change_None {
-        Repeat_Max = 1;
+        Repeat_Max = 5;
     }
 }
 
@@ -1057,7 +1061,7 @@ Histogram {
 // Control Panel Definition Division
 //-------------------------------------------------------
 Control_Panel {
-    Display_Area = 16, 70, 150, 490;
+    Display_Area = 800, 295, 150, 490;
     Display_Type = 0;
     Panel_Item {
         Item_Type = Edit_Box;
@@ -1122,7 +1126,7 @@ Control_Panel {
         Font_Color = 0, 0, 0;
         Font_Background_Color = 0, 0, 0;
         Var_Name = "Universe.series";
-        Text_Data = "1";
+        Text_Data = "5";
     }
     Panel_Item {
         Item_Type = Edit_Box;
@@ -1191,8 +1195,8 @@ Others_Data {
     Console_Size_y = 250;
     Componen_Tree_Position_x = 0;
     Componen_Tree_Position_y = 0;
-    Componen_Tree_Size_x = 1440;
-    Componen_Tree_Size_y = 413;
+    Componen_Tree_Size_x = 300;
+    Componen_Tree_Size_y = 250;
     Console_Background_Color = 16777215;
     Console_Foreground_Color = 255;
     Console_DisplayLines_Max = 500;
@@ -1247,7 +1251,7 @@ Model_Description {
         Variable series = "実行回数";
         Function writeEnvInfo {
         }
-        Function getCategoryThreshold {
+        Function PredictViewProbs {
         }
         Function getParams {
         }
@@ -1258,14 +1262,6 @@ Model_Description {
         Function getInformationFromReal {
         }
         Function functionAgtStep {
-        }
-        Function LearnNeuralNetwork {
-        }
-        Function PredictViewProb {
-        }
-        Function WriteInputs {
-        }
-        Function ReadViewProb {
         }
         Function Univ_Init {
         }

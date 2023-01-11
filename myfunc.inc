@@ -60,7 +60,8 @@ Sub getParams(
     // ジャンルごとの選好度を決定する
     getGenreWeight(self, num_genre, csvPreference)
     // 商品の採用時期による消費者集団の分類に応じて閾値を決定(最終的な鑑賞閾値決定に使用)
-    self.categoryThreshold = CDbl(ReadFileCSV(csvCategoryThreshold))
+    self.categoryDelta = CDbl(ReadFileCSV(csvCategoryThreshold))
+    self.categoryGamma = CDbl(ReadFileCSV(csvCategoryThreshold))
     // 消費者の被影響性を決定
     self.effectiveness = CDbl(ReadFileCSV(csvEffectiveness))
     // 映画鑑賞回数の初期化
@@ -151,7 +152,7 @@ Sub functionAgtStep(self As Agt, movies As Agtset, neighbors As Agtset, follower
     Dim info As Double, rand As Double
 
     // 鑑賞閾値は映画の鑑賞回数に応じて減衰する(sigma = 0.99)
-    self.infoThreshold = self.categoryThreshold  / (0.99 ^ self.viewNum)
+    self.infoThreshold = 0.99 ^ self.viewNum
 
     // 鑑賞意思決定
     For Each movie in movies
@@ -161,9 +162,7 @@ Sub functionAgtStep(self As Agt, movies As Agtset, neighbors As Agtset, follower
             // 鑑賞済みの作品についても情報受信は行わない
         Else
             info = 0  // 情報受信量の初期化
-            // rand = Rnd()  // その日の乱数を確定する
-            // ニューラルネットによる鑑賞確率予測を確立乱数値とする
-            rand = self.viewProbs(date - 1, movie.IDNo)
+            rand = Rnd()  // その日の乱数を確定する
             // 宣伝に接触するかどうかを判定
             If rand < movie.promProb Then
                 info = info + movie.promotion  // 宣伝情報量を追加
@@ -193,12 +192,15 @@ Sub functionAgtStep(self As Agt, movies As Agtset, neighbors As Agtset, follower
 
             // 情報量を蓄積
             self.Info(movie.IDNo) = self.Info(movie.IDNo) + info * self.effectiveness
+            // ニューラルネットによる鑑賞確率予測を乱数値と置き換える
+            self.infoThreshold = ((1 - self.viewProbs(date - 1, movie.IDNo)) * self.categoryDelta + self.categoryGamma) / self.infoThreshold
 
             // 閾値比較による鑑賞意思決定
             If (date > movie.startDate) And  // 作品が公開済み
                (
                    self.Info(movie.IDNo) > self.infoThreshold Or  // 情報量が閾値を超える
-                   self.Utility(movie.IDNo) > rand * 35 + 30  // 作品効用値が閾値を超える(h = 35, l = 30)
+                   // ニューラルネットによる鑑賞確率予測を乱数値と置き換える
+                   self.Utility(movie.IDNo) > (1 - self.viewProbs(date - 1, movie.IDNo)) * 35 + 30  // 作品効用値が閾値を超える(h = 35, l = 30)
                ) Then
                 // 映画を鑑賞する場合の操作
                 self.viewStep(0, movie.IDNo) = self.viewStep(0, movie.IDNo) + 1  // 作品(movie)の鑑賞回数を増やす(フラグを立てる)

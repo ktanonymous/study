@@ -92,7 +92,7 @@ UNIVERSE {
         Dim promProb(0, 0) As Double = (0.0);
         Dim IDNo(0, 0) As Integer = (0);
         Dim numAudience(0, 0) As Integer = (0);
-        Dim endDate(0, 0) As Integer = ();
+        Dim endDate(0, 0) As Integer = (0);
     }
     Dim test(0, 0)[18] As Integer = (18*0);
     Dim series(0, 0) As Integer = (0);
@@ -100,7 +100,8 @@ UNIVERSE {
     Dim dir(0, 0) As String = ("");
     Dim modeDist(0, 0) As Integer = (0);
     Dim medianDist(0, 0) As Integer = (0);
-    Dim broadcastPeriod(0, 0) As Integer = ();
+    Dim broadcastPeriod(0, 0) As Integer = (0);
+    Dim seed(0, 0) As Integer = ();
 }
 
 
@@ -118,6 +119,7 @@ Initial_Value {
     UNIVERSE.PERIOD = 1(400);
     UNIVERSE.MODEDIST = 1(8);
     UNIVERSE.MEDIANDIST = 1(9);
+    UNIVERSE.BROADCASTPERIOD = 1(70);
 }
 
 
@@ -157,13 +159,12 @@ Univ_Init{
 		PrintLn("Mode of initial view number distribution : " & Universe.modeDist)
 		PrintLn("Median of initial view number distribution : " & Universe.medianDist)
 		PrintLn("Start Time : " & TimeToStr(GetRealTime(), "HH時mm分ss秒"))
+		// シミュレーション開始時に乱数シードを固定する
+		SetRandomSeed(Universe.seed)
 	End if
 	
 	// 出力先のディレクトリ名を宣言
 	Universe.dir = "cell_market_dummy"
-	
-// 乱数シードの指定
-//	SetRandomSeed(88)
 	
 	
 	//映画を生成
@@ -1062,7 +1063,7 @@ Histogram {
 // Control Panel Definition Division
 //-------------------------------------------------------
 Control_Panel {
-    Display_Area = 1105, 111, 150, 523;
+    Display_Area = 1062, 121, 150, 586;
     Display_Type = 0;
     Panel_Item {
         Item_Type = Edit_Box;
@@ -1180,6 +1181,19 @@ Control_Panel {
         Font_Background_Color = 0, 0, 0;
         Var_Name = "Universe.broadcastPeriod";
         Text_Data = "70";
+    }
+    Panel_Item {
+        Item_Type = Edit_Box;
+        Item_Name = "seed";
+        Display_Area = 0, 0, 0, 0;
+        Font_Name = "";
+        Font_Char_Set = 0;
+        Font_Size = 0.0;
+        Font_Style = 0;
+        Font_Color = 0, 0, 0;
+        Font_Background_Color = 0, 0, 0;
+        Var_Name = "Universe.seed";
+        Text_Data = "42";
     }
 }
 
